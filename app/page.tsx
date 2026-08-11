@@ -5,30 +5,29 @@ import {
   hkd,
   incomeInInterval,
   ledgerIsBalanced,
-  liquidHkdMinor,
   netWorth,
   spendByCategory,
   spentInInterval,
 } from '@/lib/domain/balances'
 import { APP_TIMEZONE, monthInterval, toLocalDate, zonedParts } from '@/lib/domain/clock'
 import { formatMoney, money, type Currency } from '@/lib/domain/money'
+import { DEFAULT_SETTINGS, safetyTerms, termsToJson } from '@/lib/domain/safety'
 import { loadLedgerSnapshot, listCategories, listFxStatus, listRecentTransactions } from '@/lib/read/ledger'
+import { rateTableFor } from '@/lib/read/accounts'
 import { EntryForm } from './entry-form'
 import { RefreshRates } from './refresh-rates'
 
 export const dynamic = 'force-dynamic'
 
-/** Until settings land in P2 these are the plan's stated defaults (PLAN §13.1). */
-const DISCRETIONARY_BUDGET_HKD_MINOR = 600000n
-
 export default async function Home() {
   const db = await getDb()
 
-  const [snapshot, transactions, fxStatus, categories] = await Promise.all([
+  const [snapshot, transactions, fxStatus, categories, rates] = await Promise.all([
     loadLedgerSnapshot(db),
     listRecentTransactions(db, 20),
     listFxStatus(db),
     listCategories(db),
+    rateTableFor(db),
   ])
 
   // Explicit `now`, threaded into every date decision. Domain functions never
@@ -38,7 +37,6 @@ export default async function Home() {
 
   const { accounts, entries } = snapshot
   const balances = accountBalances(accounts, entries)
-  const liquid = liquidHkdMinor(accounts, balances)
   const worth = netWorth(accounts, balances)
   const spent = spentInInterval(accounts, entries, thisMonth)
   const income = incomeInInterval(accounts, entries, thisMonth)
@@ -50,6 +48,14 @@ export default async function Home() {
   )
   const byCategory = spendByCategory(accounts, entries, snapshot.categories, thisMonth)
   const balanced = ledgerIsBalanced(entries)
+
+  const terms = safetyTerms({
+    accounts,
+    entries,
+    categories: snapshot.categories,
+    settings: DEFAULT_SETTINGS,
+    now,
+  })
 
   const ownAccounts = accounts
     .filter((a) => a.isOwn)
@@ -98,11 +104,41 @@ export default async function Home() {
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Card
-          label="Liquid"
-          value={formatMoney(hkd(liquid))}
-          note="Accounts that are both liquid and owned. Committed outflows, the emergency floor and the safe-to-spend verdict arrive in P2."
-        />
+        <div
+          className={`flex flex-col gap-2 rounded-xl border p-6 ${
+            terms.availableHkdMinor < 0n
+              ? 'border-red-500/40 bg-red-500/5'
+              : 'border-(--color-green)/40 bg-(--color-green)/5'
+          }`}
+        >
+          <span className="text-xs uppercase tracking-wide text-(--color-muted)">
+            Safe to spend today
+          </span>
+          <span
+            className={`tabular text-4xl font-semibold ${
+              terms.availableHkdMinor < 0n ? 'text-red-600 dark:text-red-400' : ''
+            }`}
+          >
+            {formatMoney(hkd(terms.availableHkdMinor))}
+          </span>
+          {/*
+            The three terms are shown, not just the result. Consistency between
+            the headline number and the numbers under it is what makes the
+            headline believable (PLAN §5, §6).
+          */}
+          <dl className="mt-1 flex flex-col gap-1 text-xs text-(--color-muted)">
+            <Term label="Liquid" value={formatMoney(hkd(terms.liquidHkdMinor))} />
+            <Term
+              label={`Committed (next ${DEFAULT_SETTINGS.horizonDays}d + card balances)`}
+              value={`− ${formatMoney(hkd(terms.committedHkdMinor))}`}
+            />
+            <Term
+              label="Emergency floor"
+              value={`− ${formatMoney(hkd(terms.floorHkdMinor))}`}
+            />
+          </dl>
+        </div>
+
         <Card
           label="Net worth"
           value={formatMoney(hkd(worth.totalHkdMinor))}
@@ -121,20 +157,20 @@ export default async function Home() {
           <Stat label="Income" value={formatMoney(hkd(income))} />
           <Stat
             label="Discretionary"
-            value={`${formatMoney(hkd(discretionary), { showSymbol: false })} / ${formatMoney(hkd(DISCRETIONARY_BUDGET_HKD_MINOR), { showSymbol: false })}`}
-            emphasis={discretionary > DISCRETIONARY_BUDGET_HKD_MINOR ? 'over' : 'normal'}
+            value={`${formatMoney(hkd(discretionary), { showSymbol: false })} / ${formatMoney(hkd(terms.discretionaryBudgetHkdMinor), { showSymbol: false })}`}
+            emphasis={discretionary > terms.discretionaryBudgetHkdMinor ? 'over' : 'normal'}
           />
         </div>
 
         <div className="h-2 overflow-hidden rounded-full bg-(--color-line)">
           <div
             className={`h-full rounded-full ${
-              discretionary > DISCRETIONARY_BUDGET_HKD_MINOR
+              discretionary > terms.discretionaryBudgetHkdMinor
                 ? 'bg-red-500'
                 : 'bg-(--color-green)'
             }`}
             style={{
-              width: `${percent(discretionary, DISCRETIONARY_BUDGET_HKD_MINOR)}%`,
+              width: `${percent(discretionary, terms.discretionaryBudgetHkdMinor)}%`,
             }}
           />
         </div>
@@ -167,7 +203,13 @@ export default async function Home() {
             name: accountNames.get(a.id) ?? a.id,
             currency: a.currency,
           }))}
-          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          categories={categories.map((c) => ({
+            id: c.id,
+            name: c.name,
+            isDiscretionary: c.isDiscretionary,
+          }))}
+          terms={termsToJson(terms)}
+          rates={rates}
         />
       </section>
 
@@ -308,6 +350,15 @@ function Stat({
       >
         {value}
       </span>
+    </div>
+  )
+}
+
+function Term({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt>{label}</dt>
+      <dd className="tabular">{value}</dd>
     </div>
   )
 }

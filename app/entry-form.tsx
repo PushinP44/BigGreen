@@ -1,7 +1,14 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useCallback, useMemo, useState } from 'react'
 import { addTransaction, type ActionState } from './actions'
+import {
+  evaluatePayment,
+  termsFromJson,
+  type SafetyTermsJson,
+  type Verdict,
+} from '@/lib/domain/safety'
+import { parseAmountInput, parseRate, applyRate, type Currency } from '@/lib/domain/money'
 
 export interface AccountOption {
   readonly id: string
@@ -12,6 +19,7 @@ export interface AccountOption {
 export interface CategoryOption {
   readonly id: string
   readonly name: string
+  readonly isDiscretionary: boolean
 }
 
 type Kind = 'spend' | 'income' | 'transfer'
@@ -39,16 +47,61 @@ const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
 export function EntryForm({
   accounts,
   categories,
+  terms,
+  rates,
 }: {
   accounts: readonly AccountOption[]
   categories: readonly CategoryOption[]
+  terms: SafetyTermsJson
+  /** currency → HKD rate, as decimal strings. HKD is implicitly 1. */
+  rates: Readonly<Record<string, string>>
 }) {
   const [state, formAction, pending] = useActionState(addTransaction, initial)
   const [kind, setKind] = useState<Kind>('spend')
   const [fromId, setFromId] = useState(accounts[0]?.id ?? '')
   const [toId, setToId] = useState(accounts[1]?.id ?? '')
+  const [amount, setAmount] = useState('')
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [categoryId, setCategoryId] = useState('')
 
-  const currencyOf = (id: string) => accounts.find((a) => a.id === id)?.currency
+  const currencyOf = useCallback(
+    (id: string) => accounts.find((a) => a.id === id)?.currency,
+    [accounts],
+  )
+
+  /**
+   * Live verdict, recomputed on every keystroke by the same pure function the
+   * server uses (PLAN §5). Running the real rule in both places is the point —
+   * an approximate copy in the UI would drift, and a verdict you cannot trust
+   * is worse than none.
+   */
+  const safety = useMemo(() => {
+    if (kind !== 'spend' || amount.trim() === '') return null
+
+    const currency = currencyOf(accountId)
+    if (!currency) return null
+
+    try {
+      const parsed = parseAmountInput(amount, currency as Currency)
+      if (parsed.amountMinor <= 0n) return null
+
+      const rateText = currency === 'HKD' ? '1' : rates[currency]
+      if (rateText === undefined) return null
+
+      const hkdMinor =
+        currency === 'HKD' ? parsed.amountMinor : applyRate(parsed, parseRate(rateText)).amountMinor
+
+      return evaluatePayment(termsFromJson(terms), {
+        amountHkdMinor: hkdMinor,
+        isDiscretionary:
+          categories.find((c) => c.id === categoryId)?.isDiscretionary ?? false,
+      })
+    } catch {
+      // Mid-typing input ("12.", "-") is not an error worth shouting about;
+      // the server validates properly on submit.
+      return null
+    }
+  }, [kind, amount, accountId, categoryId, terms, rates, categories, currencyOf])
   // Only you know what the bank actually credited, so a cross-currency
   // transfer has to ask rather than apply the reference rate.
   const crossCurrency =
@@ -85,6 +138,8 @@ export function EntryForm({
             autoFocus
             required
             placeholder="0.00"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
             className={`tabular text-lg ${field}`}
           />
         </label>
@@ -127,7 +182,13 @@ export function EntryForm({
           <>
             <label className="flex flex-col gap-1">
               <span className={label}>Account</span>
-              <select name="accountId" required className={`text-lg ${field}`}>
+              <select
+                name="accountId"
+                required
+                value={accountId}
+                onChange={(event) => setAccountId(event.target.value)}
+                className={`text-lg ${field}`}
+              >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name} · {account.currency}
@@ -139,7 +200,12 @@ export function EntryForm({
             {kind === 'spend' ? (
               <label className="flex flex-col gap-1">
                 <span className={label}>Category</span>
-                <select name="categoryId" className={`text-lg ${field}`}>
+                <select
+                  name="categoryId"
+                  value={categoryId}
+                  onChange={(event) => setCategoryId(event.target.value)}
+                  className={`text-lg ${field}`}
+                >
                   <option value="">Uncategorised</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -185,6 +251,8 @@ export function EntryForm({
         </button>
       </div>
 
+      {safety ? <VerdictBadge verdict={safety.verdict} reason={safety.reason} /> : null}
+
       {state.error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {state.error}
@@ -192,5 +260,29 @@ export function EntryForm({
       ) : null}
       {state.ok ? <p className="text-sm text-(--color-green)">{state.ok}</p> : null}
     </form>
+  )
+}
+
+const VERDICT_STYLE: Record<Verdict, string> = {
+  SAFE: 'border-(--color-green)/40 bg-(--color-green)/8 text-(--color-green)',
+  CAUTION: 'border-amber-500/40 bg-amber-500/8 text-amber-600 dark:text-amber-400',
+  UNSAFE: 'border-red-500/40 bg-red-500/8 text-red-600 dark:text-red-400',
+}
+
+/**
+ * The verdict always ships with its reason. A red badge and nothing else gets
+ * ignored within a week (PLAN §5), so the numbers behind the decision are on
+ * screen at the moment of the decision.
+ */
+function VerdictBadge({ verdict, reason }: { verdict: Verdict; reason: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`flex flex-col gap-1 rounded-lg border px-4 py-3 ${VERDICT_STYLE[verdict]}`}
+    >
+      <span className="text-xs font-semibold uppercase tracking-wider">{verdict}</span>
+      <span className="text-sm text-(--color-ink)">{reason}</span>
+    </div>
   )
 }
