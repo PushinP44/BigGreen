@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# PLAN §10: merge is blocked on typecheck, lint, unit, migration up/down and a
+# secret scan. No Postgres service container — the database tests run against
+# PGlite in-process (PLAN §13).
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs history to scan commits
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test (unit, schema, RLS, ledger)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Proves the committed SQL still matches the Drizzle schema. Catches the
+      # case where someone edits lib/db/schema.ts and forgets to regenerate —
+      # which would otherwise ship a schema that only exists in TypeScript.
+      - name: Migrations are up to date with the schema
+        run: |
+          pnpm db:generate
+          if ! git diff --quiet -- supabase/migrations; then
+            echo "::error::supabase/migrations is out of date. Run 'pnpm db:generate' and commit the result."
+            git diff --stat -- supabase/migrations
+            exit 1
+          fi
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,40 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# next / build
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# ECC runtime state (installed tooling is committed; runtime state is not)
+.claude/ecc/install-state.json
+.claude/**/logs/
+.claude/**/.cache/
+
+# os / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# local dev database (PGlite)
+.pglite/
