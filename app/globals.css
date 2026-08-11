@@ -11,6 +11,23 @@
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
+/*
+  Dark theme. These have to override the variables themselves rather than
+  restyling components: `--color-line` is used as a border AND as the empty
+  track behind progress bars, so leaving it near-white in dark mode makes an
+  empty budget bar read as a full one.
+*/
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: oklch(0.95 0.01 120);
+    --color-paper: oklch(0.19 0.015 150);
+    --color-green: oklch(0.62 0.14 155);
+    --color-green-deep: oklch(0.72 0.15 155);
+    --color-muted: oklch(0.66 0.015 150);
+    --color-line: oklch(0.32 0.015 150);
+  }
+}
+
 @layer base {
   html {
     color-scheme: light dark;
@@ -30,10 +47,13 @@
     font-variant-numeric: tabular-nums;
   }
 
-  @media (prefers-color-scheme: dark) {
-    body {
-      background: oklch(0.19 0.015 150);
-      color: oklch(0.95 0.01 120);
-    }
+  select,
+  input {
+    color: var(--color-ink);
+  }
+
+  option {
+    background: var(--color-paper);
+    color: var(--color-ink);
   }
 }

@@ -174,6 +174,31 @@ async function seedDevData(pg: PGlite): Promise<void> {
     )
   }
 
+  // `is_discretionary` drives the CAUTION band of the safety rule (PLAN §5),
+  // so the split matters: it is "could I have skipped this?", not "was it
+  // nice?". Rent and utilities are not discretionary however much you dislike
+  // paying them.
+  const categorySeed: Array<[string, boolean]> = [
+    ['Food & Drink', true],
+    ['Groceries', false],
+    ['Transport', false],
+    ['Rent', false],
+    ['Utilities', false],
+    ['Health', false],
+    ['Shopping', true],
+    ['Entertainment', true],
+    ['Travel', true],
+    ['Fees & Charges', false],
+    ['Other', false],
+  ]
+
+  for (const [name, isDiscretionary] of categorySeed) {
+    await pg.query(
+      `INSERT INTO categories (user_id, name, is_discretionary) VALUES ($1, $2, $3)`,
+      [DEV_USER_ID, name, isDiscretionary],
+    )
+  }
+
   // Placeholder rates so the multi-currency path is exercised before the
   // Frankfurter job exists (P1). Marked 'manual' — they are not real quotes.
   const today = new Date().toISOString().slice(0, 10)

@@ -29,6 +29,7 @@ export interface RecordSimpleInput {
   readonly amount: string
   readonly direction: Direction
   readonly description: string
+  readonly categoryId?: string | null
   readonly occurredAt?: Date
 }
 
@@ -110,9 +111,9 @@ export async function recordSimpleTransaction(
   // all of its legs are in.
   await db.transaction(async (tx) => {
     await tx.query(
-      `INSERT INTO transactions (id, user_id, occurred_at, status, description, source)
-       VALUES ($1, $2, $3, 'posted', $4, 'manual')`,
-      [transactionId, userId, occurredAt, input.description || null],
+      `INSERT INTO transactions (id, user_id, occurred_at, status, description, source, category_id)
+       VALUES ($1, $2, $3, 'posted', $4, 'manual', $5)`,
+      [transactionId, userId, occurredAt, input.description || null, input.categoryId ?? null],
     )
 
     for (const entry of balanced.entries) {
@@ -136,6 +137,149 @@ export async function recordSimpleTransaction(
   })
 
   return { transactionId, residualMinor: balanced.residualMinor }
+}
+
+export interface RecordTransferInput {
+  readonly fromAccountId: string
+  readonly toAccountId: string
+  /** Amount leaving `from`, in `from`'s currency. */
+  readonly amount: string
+  /**
+   * Amount arriving in `to`, in `to`'s currency. Required when the two accounts
+   * differ in currency, because only you know what the bank actually credited —
+   * the reference rate is not what you got.
+   */
+  readonly toAmount?: string
+  readonly description: string
+  readonly occurredAt?: Date
+}
+
+/**
+ * Move money between two accounts you own.
+ *
+ * Never reads as income or spending, because both legs land on `is_own`
+ * accounts and every read model groups by transaction before deciding
+ * (PLAN D1, `balances.transactionDeltas`).
+ *
+ * Cross-currency transfers book their gap to `FX Gain/Loss` rather than
+ * `FX Rounding`: if you move 100 USD and 3,494 THB arrives, the difference
+ * against reference rates is the bank's spread. That is real money you paid,
+ * and it belongs somewhere you can see it.
+ */
+export async function recordTransfer(
+  db: Db,
+  input: RecordTransferInput,
+): Promise<RecordResult> {
+  if (input.fromAccountId === input.toAccountId) {
+    throw new Error('cannot transfer an account to itself')
+  }
+
+  const [from, to] = await Promise.all([
+    loadAccount(db, input.fromAccountId),
+    loadAccount(db, input.toAccountId),
+  ])
+
+  if (!from.isOwn || !to.isOwn) {
+    throw new Error('transfers move money between accounts you own; use spend or income instead')
+  }
+
+  const fromAmount = parseAmountInput(input.amount, from.currency)
+  if (fromAmount.amountMinor <= 0n) throw new Error('amount must be greater than zero')
+
+  const sameCurrency = from.currency === to.currency
+  if (!sameCurrency && input.toAmount === undefined) {
+    throw new Error(
+      `transferring ${from.currency} to ${to.currency} needs the amount that actually ` +
+        `arrived — the reference rate is not the rate your bank gave you`,
+    )
+  }
+
+  const toAmount = sameCurrency
+    ? fromAmount
+    : parseAmountInput(input.toAmount as string, to.currency)
+  if (toAmount.amountMinor <= 0n) throw new Error('received amount must be greater than zero')
+
+  const rates = await rateTableFor(db)
+  const rateFor = (currency: Currency) => {
+    if (currency === BASE_CURRENCY) return RATE_ONE
+    const rate = rates[currency]
+    if (rate === undefined) throw new Error(`no ${currency}/${BASE_CURRENCY} rate available`)
+    return parseRate(rate)
+  }
+
+  const inputs: EntryInput[] = [
+    {
+      accountId: input.fromAccountId,
+      amountMinor: -fromAmount.amountMinor,
+      currency: from.currency,
+      fxRateToHkd: rateFor(from.currency),
+    },
+    {
+      accountId: input.toAccountId,
+      amountMinor: toAmount.amountMinor,
+      currency: to.currency,
+      fxRateToHkd: rateFor(to.currency),
+    },
+  ]
+
+  const fxRoundingAccountId = await findSystemAccountId(db, 'fx_rounding')
+  const balanced = balanceEntries(
+    inputs,
+    sameCurrency
+      ? { fxRoundingAccountId }
+      : {
+          fxRoundingAccountId,
+          fxGainLossAccountId: await findSystemAccountId(db, 'fx_gain_loss'),
+        },
+  )
+
+  const transactionId = randomUUID()
+  const userId = await currentUserId(db)
+  const occurredAt = (input.occurredAt ?? new Date()).toISOString()
+
+  await db.transaction(async (tx) => {
+    await tx.query(
+      `INSERT INTO transactions (id, user_id, occurred_at, status, description, source)
+       VALUES ($1, $2, $3, 'posted', $4, 'manual')`,
+      [transactionId, userId, occurredAt, input.description || null],
+    )
+    for (const entry of balanced.entries) {
+      await tx.query(
+        `INSERT INTO entries
+           (user_id, transaction_id, account_id, amount_minor, currency,
+            fx_rate_to_hkd, amount_hkd_minor, is_fx_residual)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          userId,
+          transactionId,
+          entry.accountId,
+          entry.amountMinor.toString(),
+          entry.currency,
+          rateToString(entry.fxRateToHkd),
+          entry.amountHkdMinor.toString(),
+          entry.isFxResidual,
+        ],
+      )
+    }
+  })
+
+  return { transactionId, residualMinor: balanced.residualMinor }
+}
+
+interface LoadedAccount {
+  readonly currency: Currency
+  readonly name: string
+  readonly isOwn: boolean
+}
+
+async function loadAccount(db: Db, accountId: string): Promise<LoadedAccount> {
+  const result = await db.query<{ currency: string; name: string; is_own: boolean }>(
+    'SELECT currency, name, is_own FROM accounts WHERE id = $1 LIMIT 1',
+    [accountId],
+  )
+  const row = result.rows[0]
+  if (!row) throw new Error('account not found')
+  return { currency: row.currency.trim() as Currency, name: row.name, isOwn: row.is_own }
 }
 
 /**
