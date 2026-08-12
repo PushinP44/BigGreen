@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import { getDb } from '@/lib/db/client'
-import { loadSafetySettings } from '@/lib/read/settings'
+import { listCreditCards, loadSafetySettings } from '@/lib/read/settings'
 import { SettingsFormView } from './settings-form'
+import { CardSettings } from './cards'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
   const db = await getDb()
-  const { form } = await loadSafetySettings(db)
+  const [{ form }, cards] = await Promise.all([loadSafetySettings(db), listCreditCards(db)])
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
@@ -24,6 +25,13 @@ export default async function SettingsPage() {
       </header>
 
       <SettingsFormView form={form} />
+
+      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          Credit cards
+        </h2>
+        <CardSettings cards={cards} />
+      </section>
     </main>
   )
 }

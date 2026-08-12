@@ -124,6 +124,49 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
       </section>
 
       <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+            Credit cards
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+            How much of a card balance competes with your rent for the same cash. Either way the
+            whole balance still reduces net worth, so the gentler option cannot make you look
+            richer — only more liquid, which is the truth.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="creditModel"
+              value="minimum_payment"
+              defaultChecked={form.creditModel === 'minimum_payment'}
+              className="mt-1"
+            />
+            <span className="text-sm">
+              <strong>Minimum payment</strong> — for carrying a balance. Only what must be paid by
+              the due date counts. Treating a long-carried balance as due within 30 days would
+              report nothing available, every day, forever.
+            </span>
+          </label>
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="creditModel"
+              value="full_balance"
+              defaultChecked={form.creditModel === 'full_balance'}
+              className="mt-1"
+            />
+            <span className="text-sm">
+              <strong>Full balance</strong> — for clearing the card monthly, when the balance
+              really is next month&rsquo;s outflow. More conservative.
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
           Advanced
         </h2>

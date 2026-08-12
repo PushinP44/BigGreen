@@ -14,6 +14,7 @@ import {
 import { APP_TIMEZONE, monthInterval, toLocalDate, zonedParts } from '@/lib/domain/clock'
 import { formatMoney, money, type Currency } from '@/lib/domain/money'
 import { safetyTerms, termsToJson, type PoolTerms } from '@/lib/domain/safety'
+import type { CardPosition } from '@/lib/domain/credit'
 import {
   loadLedgerSnapshot,
   listCategories,
@@ -356,6 +357,49 @@ function PoolCard({ pool, worth }: { pool: PoolTerms; worth: CurrencyPool | unde
           burn: {pool.burnSource}
           {pool.burnSource === 'declared' ? ' (not enough history yet)' : ''}
         </span>
+      ) : null}
+
+      {pool.cards.map((card) => (
+        <CardPanel key={card.accountId} card={card} currency={pool.currency} />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The card, split into what it actually is: a payment due soon, and debt.
+ *
+ * Showing the balance alone hides both halves — you cannot see what is
+ * genuinely due next, and you cannot see what carrying the rest costs. The
+ * interest figure is the number that makes carrying a balance a visible choice
+ * rather than something discovered on a statement.
+ */
+function CardPanel({ card, currency }: { card: CardPosition; currency: Currency }) {
+  const amount = (minor: bigint) => formatMoney(money(minor, currency))
+  if (card.owedMinor === 0n) return null
+
+  return (
+    <div className="mt-2 flex flex-col gap-1 border-t border-(--color-line) pt-2 text-xs text-(--color-muted)">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="uppercase tracking-wide">Card owed</span>
+        <span className="tabular">{amount(card.owedMinor)}</span>
+      </div>
+      <Term
+        label={`Due ${shortDate(card.cycle.dueAt)}${card.dueWithinHorizon ? '' : ' (past horizon)'}`}
+        value={amount(card.minimumPaymentMinor)}
+      />
+      {card.unbilledMinor > 0n ? (
+        <Term label="Since statement" value={amount(card.unbilledMinor)} />
+      ) : null}
+      {card.estimatedMonthlyInterestMinor !== null &&
+      card.estimatedMonthlyInterestMinor > 0n ? (
+        <div className="flex items-baseline justify-between gap-3 text-amber-600 dark:text-amber-400">
+          <dt>Interest ≈ /month</dt>
+          <dd className="tabular">{amount(card.estimatedMonthlyInterestMinor)}</dd>
+        </div>
+      ) : null}
+      {card.availableCreditMinor !== null ? (
+        <Term label="Credit left" value={amount(card.availableCreditMinor)} />
       ) : null}
     </div>
   )

@@ -25,6 +25,7 @@ export const SETTING_KEYS = {
   horizonDays: 'safety.horizon_days',
   burnWindowDays: 'safety.burn_window_days',
   minHistoryDays: 'safety.min_history_days',
+  creditModel: 'safety.credit_model',
 } as const
 
 /** Per-currency values are stored as one row keyed `<key>.<currency>`. */
@@ -42,6 +43,7 @@ export interface SettingsForm {
   readonly horizonDays: number
   readonly burnWindowDays: number
   readonly minHistoryDays: number
+  readonly creditModel: 'minimum_payment' | 'full_balance'
   /** True while a value is still the built-in placeholder rather than the owner's. */
   readonly usingDefaults: Readonly<Record<string, boolean>>
 }
@@ -116,6 +118,9 @@ export async function loadSafetySettings(
   const minHistoryDays = read(SETTING_KEYS.minHistoryDays, DEFAULT_SETTINGS.minHistoryDays, (raw) =>
     nonNegativeInt.parse(raw),
   )
+  const creditModel = read(SETTING_KEYS.creditModel, DEFAULT_SETTINGS.creditModel, (raw) =>
+    z.enum(['minimum_payment', 'full_balance']).parse(raw),
+  )
 
   return {
     settings: {
@@ -124,6 +129,7 @@ export async function loadSafetySettings(
       horizonDays,
       burnWindowDays,
       minHistoryDays,
+      creditModel,
     },
     form: {
       floorDays,
@@ -132,6 +138,7 @@ export async function loadSafetySettings(
       horizonDays,
       burnWindowDays,
       minHistoryDays,
+      creditModel,
       usingDefaults,
     },
   }
@@ -169,4 +176,49 @@ async function currentUserId(db: Db): Promise<string> {
   const uid = result.rows[0]?.uid
   if (!uid) throw new Error('no authenticated user in session')
   return uid
+}
+
+export interface CardSettingsRow {
+  readonly id: string
+  readonly name: string
+  readonly currency: string
+  readonly statementDay: number | null
+  readonly paymentDueDay: number | null
+  readonly creditLimitMinor: string | null
+  readonly aprBps: number | null
+  readonly minPaymentPctBps: number | null
+  readonly minPaymentFloorMinor: string | null
+}
+
+/** Credit cards and their billing terms, for the settings page. */
+export async function listCreditCards(db: Db): Promise<CardSettingsRow[]> {
+  const result = await db.query<{
+    id: string
+    name: string
+    currency: string
+    statement_day: number | null
+    payment_due_day: number | null
+    credit_limit_minor: string | null
+    apr_bps: number | null
+    min_payment_pct_bps: number | null
+    min_payment_floor_minor: string | null
+  }>(
+    `SELECT id, name, currency, statement_day, payment_due_day, credit_limit_minor,
+            apr_bps, min_payment_pct_bps, min_payment_floor_minor
+       FROM accounts
+      WHERE kind = 'credit_card' AND archived_at IS NULL
+      ORDER BY name`,
+  )
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    currency: row.currency.trim(),
+    statementDay: row.statement_day,
+    paymentDueDay: row.payment_due_day,
+    creditLimitMinor: row.credit_limit_minor,
+    aprBps: row.apr_bps,
+    minPaymentPctBps: row.min_payment_pct_bps,
+    minPaymentFloorMinor: row.min_payment_floor_minor,
+  }))
 }

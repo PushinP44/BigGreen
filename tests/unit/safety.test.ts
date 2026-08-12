@@ -352,6 +352,83 @@ describe('committed', () => {
   })
 })
 
+describe('credit cards in the safety rule', () => {
+  const withTerms = accounts.map((a) =>
+    a.id === 'card'
+      ? {
+          ...a,
+          card: {
+            statementDay: 25,
+            paymentDueDay: 15,
+            creditLimitMinor: 5_000_000n,
+            aprBps: 3600,
+            minPaymentPctBps: 100,
+            minPaymentFloorMinor: 5_000n,
+          },
+        }
+      : a,
+  )
+
+  // A long-carried balance, billed before the 25 August close.
+  const carried = [
+    ...funded,
+    ...txn(
+      [
+        ['card', -4_000_000n],
+        ['expenses', 4_000_000n],
+      ],
+      { occurredAt: new Date('2026-06-10T04:00:00Z') },
+    ),
+  ]
+
+  const at = (now: Date, accountsOverride = withTerms) =>
+    safetyTerms({ accounts: accountsOverride, entries: carried, categories, settings: DEFAULT_SETTINGS, now })
+
+  it('commits only the minimum payment when you carry a balance', () => {
+    // The reason this module exists: a HK$40,000 carried balance treated as due
+    // within 30 days reports nothing available, every day, forever — and a rule
+    // that always says UNSAFE is one you stop reading.
+    const hkd = poolTermsFor(at(new Date('2026-08-30T04:00:00Z')), 'HKD')!
+    expect(hkd.committedMinor).toBe(40_000n) // 1% of HK$40,000
+    expect(hkd.liquidMinor).toBe(5_000_000n)
+  })
+
+  it('falls back to the whole balance when no cycle is on record', () => {
+    // A cycle nobody has told us about must not be invented; the conservative
+    // model is the safe default.
+    const hkd = poolTermsFor(at(new Date('2026-08-30T04:00:00Z'), accounts), 'HKD')!
+    expect(hkd.committedMinor).toBe(4_000_000n)
+  })
+
+  it('commits the whole balance when the model says you clear the card', () => {
+    const clearing = {
+      accounts: withTerms,
+      entries: carried,
+      categories,
+      settings: { ...DEFAULT_SETTINGS, creditModel: 'full_balance' as const },
+      now: new Date('2026-08-30T04:00:00Z'),
+    }
+    expect(poolTermsFor(safetyTerms(clearing), 'HKD')?.committedMinor).toBe(4_000_000n)
+  })
+
+  it('exposes the card position for the dashboard', () => {
+    const hkd = poolTermsFor(at(new Date('2026-08-30T04:00:00Z')), 'HKD')!
+    expect(hkd.cards).toHaveLength(1)
+    expect(hkd.cards[0]?.owedMinor).toBe(4_000_000n)
+    // HK$40,000 at 36% is HK$1,200 a month — the price of carrying it.
+    expect(hkd.cards[0]?.estimatedMonthlyInterestMinor).toBe(120_000n)
+    expect(hkd.cards[0]?.availableCreditMinor).toBe(1_000_000n)
+  })
+
+  it('never lets the cycle model commit more than the whole balance', () => {
+    // Switching models can only move `available` one way, so the choice cannot
+    // accidentally make you look richer.
+    const cycle = poolTermsFor(at(new Date('2026-08-30T04:00:00Z')), 'HKD')!
+    const full = poolTermsFor(at(new Date('2026-08-30T04:00:00Z'), accounts), 'HKD')!
+    expect(cycle.committedMinor).toBeLessThanOrEqual(full.committedMinor)
+  })
+})
+
 describe('verdict', () => {
   const terms = () => safetyTerms(input(funded))
   const hkdPayment = (amountMinor: bigint, isDiscretionary = false) => ({

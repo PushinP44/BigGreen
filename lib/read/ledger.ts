@@ -44,8 +44,16 @@ export async function loadLedgerSnapshot(db: Db): Promise<LedgerSnapshot> {
       is_liquid: boolean
       is_own: boolean
       opening_balance_minor: string
+      credit_limit_minor: string | null
+      statement_day: number | null
+      payment_due_day: number | null
+      apr_bps: number | null
+      min_payment_pct_bps: number | null
+      min_payment_floor_minor: string | null
     }>(
-      `SELECT id, kind::text AS kind, currency, is_liquid, is_own, opening_balance_minor
+      `SELECT id, kind::text AS kind, currency, is_liquid, is_own, opening_balance_minor,
+              credit_limit_minor, statement_day, payment_due_day, apr_bps,
+              min_payment_pct_bps, min_payment_floor_minor
          FROM accounts WHERE archived_at IS NULL`,
     ),
     db.query<{
@@ -78,6 +86,23 @@ export async function loadLedgerSnapshot(db: Db): Promise<LedgerSnapshot> {
       isLiquid: row.is_liquid,
       isOwn: row.is_own,
       openingBalanceMinor: BigInt(row.opening_balance_minor),
+      // Only attached to cards. Absent means the safety rule falls back to the
+      // conservative whole-balance model rather than inventing a cycle.
+      card:
+        row.kind === 'credit_card'
+          ? {
+              statementDay: row.statement_day,
+              paymentDueDay: row.payment_due_day,
+              creditLimitMinor:
+                row.credit_limit_minor === null ? null : BigInt(row.credit_limit_minor),
+              aprBps: row.apr_bps,
+              minPaymentPctBps: row.min_payment_pct_bps,
+              minPaymentFloorMinor:
+                row.min_payment_floor_minor === null
+                  ? null
+                  : BigInt(row.min_payment_floor_minor),
+            }
+          : undefined,
     })),
     entries: entryRows.rows.map((row) => ({
       transactionId: row.transaction_id,

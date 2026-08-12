@@ -101,6 +101,21 @@ export const accounts = pgTable(
      * user so the balancing code can find them without a name lookup.
      */
     systemRole: text('system_role'),
+
+    // ── Credit card terms ───────────────────────────────────────────────────
+    // Only meaningful when kind = 'credit_card'. Null everywhere else, and the
+    // card model degrades to its simple behaviour when they are missing rather
+    // than inventing a cycle.
+    creditLimitMinor: bigint('credit_limit_minor', { mode: 'bigint' }),
+    /** Day of month the statement closes, 1–31. Clamped to short months. */
+    statementDay: integer('statement_day'),
+    paymentDueDay: integer('payment_due_day'),
+    /** Annual rate in basis points; HK cards are commonly 3000–3600. */
+    aprBps: integer('apr_bps'),
+    /** Minimum payment as a fraction of the statement balance, in bps. */
+    minPaymentPctBps: integer('min_payment_pct_bps'),
+    minPaymentFloorMinor: bigint('min_payment_floor_minor', { mode: 'bigint' }),
+
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -109,6 +124,17 @@ export const accounts = pgTable(
     // Money you do not control is never part of your liquidity. Enforcing this
     // in the database means the safety rule cannot be fed a nonsense snapshot.
     check('accounts_liquid_implies_own', sql`not ${t.isLiquid} or ${t.isOwn}`),
+    // A statement day of 0 or 40 would silently produce a nonsense cycle and
+    // therefore a nonsense due date, which the safety rule would then trust.
+    check(
+      'accounts_statement_day_range',
+      sql`${t.statementDay} is null or (${t.statementDay} between 1 and 31)`,
+    ),
+    check(
+      'accounts_due_day_range',
+      sql`${t.paymentDueDay} is null or (${t.paymentDueDay} between 1 and 31)`,
+    ),
+    check('accounts_apr_non_negative', sql`${t.aprBps} is null or ${t.aprBps} >= 0`),
     index('accounts_user_idx').on(t.userId),
     uniqueIndex('accounts_system_role_idx')
       .on(t.userId, t.systemRole)

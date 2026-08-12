@@ -32,6 +32,7 @@ import {
   type CurrencyPool,
 } from './balances'
 import { BASE_CURRENCY, type Currency } from './money'
+import { cardPosition, DEFAULT_CARD_TERMS, type CardPosition, type CreditModel } from './credit'
 
 export type Verdict = 'SAFE' | 'CAUTION' | 'UNSAFE'
 
@@ -63,6 +64,19 @@ export interface SafetySettings {
   readonly burnWindowDays: number
   /** Below this much history, the declared burn is used instead. */
   readonly minHistoryDays: number
+  /**
+   * How a credit card enters `committed`.
+   *
+   * `minimum_payment` is right when you carry a balance: only what must be paid
+   * by the due date competes with your rent for the same cash, and treating a
+   * long-standing balance as due within 30 days would report nothing available,
+   * every day, forever. `full_balance` is right when you clear the card monthly,
+   * because then the balance really is next month's outflow.
+   *
+   * Either way the full balance still reduces net worth, so the gentler model
+   * cannot make you look richer — only more liquid, which is the truth.
+   */
+  readonly creditModel: CreditModel
 }
 
 export const DEFAULT_SETTINGS: SafetySettings = {
@@ -82,6 +96,7 @@ export const DEFAULT_SETTINGS: SafetySettings = {
   horizonDays: 30,
   burnWindowDays: 90,
   minHistoryDays: 30,
+  creditModel: 'minimum_payment',
 }
 
 export interface SafetyInput {
@@ -107,6 +122,8 @@ export interface PoolTerms {
   /** Days the un-floored balance would last. Null when the burn is unknown. */
   readonly runwayDays: number | null
   readonly floorDays: number
+  /** One per credit card in this pool, for the dashboard to render. */
+  readonly cards: readonly CardPosition[]
 }
 
 export interface SafetyTerms {
@@ -156,15 +173,11 @@ function termsForPool(
   const poolSettings = settings.pools[pool.currency]
   const poolAccounts = new Set(pool.accountIds)
 
-  // Deliberately simple credit-card treatment (PLAN §5): the full outstanding
-  // balance is committed, with no statement-cycle awareness. It may understate
-  // `available`; it cannot overstate it — and overstating is the failure that
-  // tells you you're rich when you aren't. The balance is negative in the
-  // ledger, so negate it.
-  const cardDebt = pool.liabilitiesMinor < 0n ? -pool.liabilitiesMinor : 0n
+  const cards = cardCommitments(pool, accounts, entries, settings, now, horizon)
 
   const committed =
-    cardDebt + scheduledExternalOutflows(accounts, entries, poolAccounts, pool.currency, horizon)
+    cards.committedMinor +
+    scheduledExternalOutflows(accounts, entries, poolAccounts, pool.currency, horizon)
 
   const { dailyBurnMinor, burnSource } = burnRate(
     pool,
@@ -191,6 +204,7 @@ function termsForPool(
     runwayDays:
       dailyBurnMinor > 0n ? Number(spendable) / Number(dailyBurnMinor) : null,
     floorDays,
+    cards: cards.positions,
   }
 }
 
@@ -243,6 +257,66 @@ function daysOfHistory(entries: readonly EntrySnapshot[], now: Date): number {
   }
   if (earliest === null) return 0
   return Math.max(0, Math.floor((now.getTime() - earliest) / 86_400_000))
+}
+
+/**
+ * What the cards in this pool oblige you to pay soon.
+ *
+ * A card with recorded statement terms gets the real cycle: only the minimum
+ * payment, and only if its due date lands inside the horizon (PLAN §5, rev 5).
+ * A card without them falls back to the old conservative rule — the whole
+ * balance — because a cycle nobody has told us about must not be invented.
+ */
+function cardCommitments(
+  pool: CurrencyPool,
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  settings: SafetySettings,
+  now: Date,
+  horizon: Interval,
+): { committedMinor: bigint; positions: CardPosition[] } {
+  const poolAccounts = new Set(pool.accountIds)
+  const horizonDays = settings.horizonDays
+
+  let committed = 0n
+  const positions: CardPosition[] = []
+
+  for (const account of accounts) {
+    if (account.kind !== 'credit_card') continue
+    if (!poolAccounts.has(account.id)) continue
+
+    const card = account.card
+    if (!card || card.statementDay === null || card.paymentDueDay === null) {
+      // No cycle on record. Fall back to the whole outstanding balance: it may
+      // understate `available`, but it cannot overstate it, and overstating is
+      // the failure that tells you you're rich when you aren't.
+      const balance = entries
+        .filter((e) => e.accountId === account.id && e.status === 'posted')
+        .reduce((total, e) => total + e.amountMinor, 0n)
+      committed += balance < 0n ? -balance : 0n
+      continue
+    }
+
+    const position = cardPosition(entries, account.id, now, {
+      terms: {
+        statementDay: card.statementDay,
+        paymentDueDay: card.paymentDueDay,
+        creditLimitMinor: card.creditLimitMinor,
+        aprBps: card.aprBps,
+        minPaymentPctBps: card.minPaymentPctBps ?? DEFAULT_CARD_TERMS.minPaymentPctBps,
+        minPaymentFloorMinor:
+          card.minPaymentFloorMinor ?? DEFAULT_CARD_TERMS.minPaymentFloorMinor,
+      },
+      model: settings.creditModel,
+      horizonDays,
+    })
+
+    positions.push(position)
+    committed += position.committedMinor
+  }
+
+  void horizon
+  return { committedMinor: committed, positions }
 }
 
 /**
@@ -470,6 +544,9 @@ export function termsFromJson(json: SafetyTermsJson): SafetyTerms {
       burnSource: pool.burnSource,
       runwayDays: pool.runwayDays,
       floorDays: pool.floorDays,
+      // Card detail is dashboard-only and the verdict never reads it, so it is
+      // deliberately not shipped to the client rather than round-tripped.
+      cards: [],
     })),
     discretionarySpentHkdMinor: BigInt(json.discretionarySpentHkdMinor),
     discretionaryBudgetHkdMinor: BigInt(json.discretionaryBudgetHkdMinor),

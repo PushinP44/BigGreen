@@ -32,6 +32,17 @@ export interface AccountSnapshot {
   readonly isLiquid: boolean
   readonly isOwn: boolean
   readonly openingBalanceMinor: bigint
+  /** Set only on credit cards; absent means the simple model (PLAN §5). */
+  readonly card?: CardTermsSnapshot | undefined
+}
+
+export interface CardTermsSnapshot {
+  readonly statementDay: number | null
+  readonly paymentDueDay: number | null
+  readonly creditLimitMinor: bigint | null
+  readonly aprBps: number | null
+  readonly minPaymentPctBps: number | null
+  readonly minPaymentFloorMinor: bigint | null
 }
 
 export interface CategorySnapshot {

@@ -15,6 +15,13 @@
       "when": 1786460575738,
       "tag": "0001_rls_and_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786526802321,
+      "tag": "0002_credit_card_terms",
+      "breakpoints": true
     }
   ]
 }
