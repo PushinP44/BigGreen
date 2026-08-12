@@ -77,6 +77,14 @@ export interface SafetySettings {
    * cannot make you look richer — only more liquid, which is the truth.
    */
   readonly creditModel: CreditModel
+  /**
+   * Confidence at or above which a parsed email posts without review.
+   *
+   * The bar is a setting because it is a risk appetite, not a constant: too low
+   * and a bad parse silently becomes a wrong balance, too high and everything
+   * queues up and the automation buys you nothing.
+   */
+  readonly autoPostConfidence: number
 }
 
 export const DEFAULT_SETTINGS: SafetySettings = {
@@ -97,6 +105,7 @@ export const DEFAULT_SETTINGS: SafetySettings = {
   burnWindowDays: 90,
   minHistoryDays: 30,
   creditModel: 'minimum_payment',
+  autoPostConfidence: 0.9,
 }
 
 export interface SafetyInput {

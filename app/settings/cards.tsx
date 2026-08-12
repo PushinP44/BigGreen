@@ -13,6 +13,7 @@ export interface CardRow {
   readonly aprBps: number | null
   readonly minPaymentPctBps: number | null
   readonly minPaymentFloorMinor: string | null
+  readonly accountLast4: string | null
 }
 
 const initial: SettingsState = {}
@@ -80,6 +81,18 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
             </label>
 
             <label className="flex flex-col gap-1">
+              <span className={label}>Card ends in</span>
+              <input
+                name={`last4.${card.id}`}
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="4321"
+                defaultValue={card.accountLast4 ?? ''}
+                className={`tabular w-28 ${field}`}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
               <span className={label}>Credit limit</span>
               <input
                 name={`creditLimit.${card.id}`}
@@ -127,6 +140,8 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
           </div>
 
           <p className="text-xs text-(--color-muted)">
+            The last four digits are how an emailed alert is matched to this card. Without them,
+            an alert naming a card number cannot be filed with certainty and waits for review.
             A statement day of 31 is fine — short months clamp to their last day. If your due day
             falls before your statement day, it is read as the following month.
           </p>

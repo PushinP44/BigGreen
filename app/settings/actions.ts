@@ -142,8 +142,14 @@ export async function saveCard(
         throw new Error('set both the statement day and the payment due day, or neither')
       }
 
+      const last4Raw = String(formData.get(`last4.${id}`) ?? '').trim()
+      if (last4Raw !== '' && !/^\d{4}$/.test(last4Raw)) {
+        throw new Error('card ending must be exactly four digits')
+      }
+
       await db.query(
         `UPDATE accounts SET
+           account_last4 = $8,
            statement_day = $2,
            payment_due_day = $3,
            credit_limit_minor = $4,
@@ -159,6 +165,7 @@ export async function saveCard(
           percentBps('apr'),
           percentBps('minPct'),
           amount('minFloor', currency)?.toString() ?? null,
+          last4Raw === '' ? null : last4Raw,
         ],
       )
     }

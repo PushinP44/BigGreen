@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "account_last4" text;

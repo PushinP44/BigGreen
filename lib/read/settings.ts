@@ -26,6 +26,7 @@ export const SETTING_KEYS = {
   burnWindowDays: 'safety.burn_window_days',
   minHistoryDays: 'safety.min_history_days',
   creditModel: 'safety.credit_model',
+  autoPostConfidence: 'ingest.auto_post_confidence',
 } as const
 
 /** Per-currency values are stored as one row keyed `<key>.<currency>`. */
@@ -44,6 +45,7 @@ export interface SettingsForm {
   readonly burnWindowDays: number
   readonly minHistoryDays: number
   readonly creditModel: 'minimum_payment' | 'full_balance'
+  readonly autoPostConfidence: number
   /** True while a value is still the built-in placeholder rather than the owner's. */
   readonly usingDefaults: Readonly<Record<string, boolean>>
 }
@@ -121,6 +123,11 @@ export async function loadSafetySettings(
   const creditModel = read(SETTING_KEYS.creditModel, DEFAULT_SETTINGS.creditModel, (raw) =>
     z.enum(['minimum_payment', 'full_balance']).parse(raw),
   )
+  const autoPostConfidence = read(
+    SETTING_KEYS.autoPostConfidence,
+    DEFAULT_SETTINGS.autoPostConfidence,
+    (raw) => z.number().min(0).max(1).parse(raw),
+  )
 
   return {
     settings: {
@@ -130,6 +137,7 @@ export async function loadSafetySettings(
       burnWindowDays,
       minHistoryDays,
       creditModel,
+      autoPostConfidence,
     },
     form: {
       floorDays,
@@ -139,6 +147,7 @@ export async function loadSafetySettings(
       burnWindowDays,
       minHistoryDays,
       creditModel,
+      autoPostConfidence,
       usingDefaults,
     },
   }
@@ -188,6 +197,7 @@ export interface CardSettingsRow {
   readonly aprBps: number | null
   readonly minPaymentPctBps: number | null
   readonly minPaymentFloorMinor: string | null
+  readonly accountLast4: string | null
 }
 
 /** Credit cards and their billing terms, for the settings page. */
@@ -202,9 +212,10 @@ export async function listCreditCards(db: Db): Promise<CardSettingsRow[]> {
     apr_bps: number | null
     min_payment_pct_bps: number | null
     min_payment_floor_minor: string | null
+    account_last4: string | null
   }>(
     `SELECT id, name, currency, statement_day, payment_due_day, credit_limit_minor,
-            apr_bps, min_payment_pct_bps, min_payment_floor_minor
+            apr_bps, min_payment_pct_bps, min_payment_floor_minor, account_last4
        FROM accounts
       WHERE kind = 'credit_card' AND archived_at IS NULL
       ORDER BY name`,
@@ -220,5 +231,6 @@ export async function listCreditCards(db: Db): Promise<CardSettingsRow[]> {
     aprBps: row.apr_bps,
     minPaymentPctBps: row.min_payment_pct_bps,
     minPaymentFloorMinor: row.min_payment_floor_minor,
+    accountLast4: row.account_last4,
   }))
 }

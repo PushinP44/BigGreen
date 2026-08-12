@@ -54,7 +54,12 @@ export const transactionStatus = pgEnum('transaction_status', [
   'void',
 ])
 
-export const transactionSource = pgEnum('transaction_source', ['manual', 'shortcut', 'recurrence'])
+export const transactionSource = pgEnum('transaction_source', [
+  'manual',
+  'email',
+  'shortcut',
+  'recurrence',
+])
 
 export const instrumentKind = pgEnum('instrument_kind', [
   'stock',
@@ -86,8 +91,16 @@ export const accounts = pgTable(
     userId: userId(),
     name: text('name').notNull(),
     kind: accountKind('kind').notNull(),
-    /** hsbc | za | mox | octopus | payme | manual — drives grouping and seeding. */
+    /** hsbc | za | mox | octopus | payme | ktb — drives grouping and email routing. */
     institution: text('institution'),
+    /**
+     * Last four digits of the card or account number.
+     *
+     * A real column rather than something scraped out of the account name:
+     * this is how an emailed alert is matched to the right account, and
+     * matching on a name means renaming an account silently breaks ingest.
+     */
+    accountLast4: text('account_last4'),
     currency: char('currency', { length: 3 }).notNull(),
     isLiquid: boolean('is_liquid').notNull().default(false),
     isOwn: boolean('is_own').notNull().default(false),

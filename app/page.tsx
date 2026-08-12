@@ -73,6 +73,16 @@ export default async function Home() {
     ),
   )
 
+  // Emails the parser was not confident enough to post. An unbounded queue
+  // means a parser is broken, so it belongs where you cannot miss it.
+  const pendingCount = Number(
+    (
+      await db.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM transactions WHERE status = 'pending'`,
+      )
+    ).rows[0]?.n ?? 0,
+  )
+
   const ownAccounts = accounts.filter((a) => a.isOwn)
   const monthLabel = new Intl.DateTimeFormat('en-GB', {
     timeZone: APP_TIMEZONE,
@@ -90,6 +100,14 @@ export default async function Home() {
           </p>
         </div>
         <nav className="flex items-center gap-2">
+          {pendingCount > 0 ? (
+            <Link
+              href="/review"
+              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs uppercase tracking-wide text-amber-600 transition hover:border-amber-500 dark:text-amber-400"
+            >
+              {pendingCount} to review
+            </Link>
+          ) : null}
           <Link href="/settings" className={chip}>
             Settings
           </Link>
