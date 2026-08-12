@@ -5,8 +5,12 @@ Personal money tracker across platforms. Base currency **HKD**, with THB and USD
 Read [`docs/PLAN.md`](docs/PLAN.md) before doing any work — it holds the data model, the
 safe/unsafe rule, and the phase order. [`CLAUDE.md`](CLAUDE.md) is the short version.
 
-**Status: P0–P2 complete.** Foundation, schema, RLS, domain core, ledger, dashboard, FX feed,
-export, and the safety engine. 210 tests.
+**Status: live on Supabase, with auth.** Foundation, schema, RLS, domain core, ledger,
+dashboard, FX feed, export, safety engine, credit-card cycles, Gmail ingest, and Supabase Auth.
+304 tests.
+
+Deploying? See [`docs/DEPLOY.md`](docs/DEPLOY.md) — including why Supabase cannot host the app
+itself, and what is still single-user before this could go public.
 
 ## Quick start
 
