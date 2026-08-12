@@ -40,11 +40,14 @@ apply `supabase/migrations/*.sql` in filename order.
 
 ```bash
 pnpm dev          # dev server on :3119
-pnpm test         # unit + schema + RLS + ledger  (210 tests)
+pnpm test         # unit + schema + RLS + ledger + parsers  (304 tests)
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint
 pnpm verify       # typecheck + lint + test — run before committing
 pnpm db:generate  # regenerate SQL from lib/db/schema.ts
+pnpm db:migrate   # apply migrations to DATABASE_URL
+pnpm db:seed      # the owner's own accounts (never used by sign-up)
+pnpm db:claim <email>   # move pre-auth data to a real account
 ```
 
 > TypeScript is pinned to 6.x and ESLint to 9.x on purpose: typescript-eslint does not yet
@@ -81,26 +84,33 @@ tests/
 
 ## What's built
 
-**P0 — Foundation.** All 11 tables with RLS on every one, verified by tests that prove a second
-user reads nothing and cannot reach across tenants through a foreign key. `money.ts`,
-`clock.ts`, `fx.ts` at full branch coverage with property tests. Deferred constraint trigger
-enforcing double-entry at COMMIT.
+**Foundation.** 11 tables, RLS on every one, verified by tests proving a second user reads
+nothing and cannot reach across tenants through a foreign key. Deferred constraint trigger
+enforcing double-entry at COMMIT. `money` / `clock` / `fx` at full branch coverage.
 
-**P1 — Ledger and dashboard.** Balance engine, spend/income/transfer flows across HKD·THB·USD,
-categories, cross-currency transfers that book the bank's spread to `FX Gain/Loss`, free FX
-from Frankfurter with validation and manual override, dashboard, and a full JSON/CSV export.
+**Ledger and dashboard.** Balance engine, spend/income/transfer across HKD·THB·USD, categories,
+cross-currency transfers booking the bank's spread to `FX Gain/Loss`, free FX from Frankfurter,
+JSON/CSV export.
 
-**P2 — Safety.** `available = liquid − committed − floor`, with a verdict that always carries
-the numbers behind it, live in the entry form as you type. Reconciler that stops a materialised
-commitment and its payment being counted twice.
+**Safety.** Per-currency pools — baht in a Thai bank cannot buy lunch in Hong Kong, so each pool
+is judged against the money that can actually pay for it. Floor is days of cover rather than a
+fixed cushion, so it self-calibrates. Verdicts carry their numbers, live as you type.
+
+**Credit cards.** Real statement cycles, and a revolving-balance model: the minimum payment is
+the near-term obligation, the rest is debt whose interest cost is shown rather than discovered
+on a statement.
+
+**Gmail ingest.** Apps Script poller → HMAC-signed endpoint → parser registry with confidence
+scoring. Above the bar it posts itself; below it waits in a review queue that says what it was
+unsure about. Idempotent on the Gmail message id.
+
+**Auth.** Supabase magic link, per-user provisioning, account management.
 
 ## Still open
 
-Answer these when convenient — none block using the app:
-
-1. **Your real emergency floor and discretionary budget.** Currently 10,000 and 6,000 HKD/month,
-   both guesses. They live in `rule_settings` and change in seconds.
-2. **Savings vs investing split** for the 30% rule — one sleeve or split, needed before P3.
-3. **Email parsing — keep or cut?** Standing recommendation is cut (PLAN §7.0).
-
-Next: **P3** — the allocation rule (≥2,000 HKD inflow → 30% suggestion), then **P4** investments.
+1. **A redacted HSBC alert.** Everything runs on the generic heuristic parser until there is a
+   real sample to write a sender-specific one against.
+2. **Savings vs investing split** for the 30% inflow rule — one sleeve or split.
+3. **The allocation rule itself** (≥2,000 HKD inflow → 30% suggestion) and **investments**.
+4. **Everything in [`docs/DEPLOY.md`](docs/DEPLOY.md) under "Before this is public"** — the app
+   works well for one person, and several things assume that person is the owner.
