@@ -10,7 +10,7 @@
  */
 
 import { type Interval, contains } from './clock'
-import { BASE_CURRENCY, type Currency, type Money } from './money'
+import { BASE_CURRENCY, minorUnitsOf, type Currency, type Money } from './money'
 
 /** One ledger entry, flattened with the bits of its transaction that matter. */
 export interface EntrySnapshot {
@@ -113,6 +113,91 @@ export function liquidHkdMinor(
     total += balances.get(account.id)?.hkdMinor ?? 0n
   }
   return total
+}
+
+// ── Currency pools ──────────────────────────────────────────────────────────
+
+/**
+ * A pool is all the money you hold in one currency.
+ *
+ * PLAN rev 4. HKD is the unit the ledger *balances* in, but it is not the unit
+ * anything is *reported* in, because THB sitting in a Thai bank cannot buy
+ * lunch in Hong Kong. Summing the three into one figure states that money is
+ * available today when it is days and a conversion spread away — the same
+ * failure the credit-card treatment in §5 exists to avoid.
+ *
+ * Every figure here is in the pool's own minor units.
+ */
+export interface CurrencyPool {
+  readonly currency: Currency
+  readonly liquidMinor: bigint
+  readonly investmentsMinor: bigint
+  readonly liabilitiesMinor: bigint
+  readonly totalMinor: bigint
+  /** The same total in HKD at each entry's frozen rate — an estimate, never the headline. */
+  readonly totalHkdMinor: bigint
+  readonly accountIds: readonly string[]
+}
+
+export function currencyPools(
+  accounts: readonly AccountSnapshot[],
+  balances: Map<string, AccountBalanceResult>,
+): CurrencyPool[] {
+  const pools = new Map<Currency, {
+    liquid: bigint
+    investments: bigint
+    liabilities: bigint
+    hkd: bigint
+    ids: string[]
+  }>()
+
+  for (const account of accounts) {
+    if (!account.isOwn) continue
+
+    const balance = balances.get(account.id)
+    const native = balance?.nativeMinor ?? 0n
+    const hkd = balance?.hkdMinor ?? 0n
+
+    const pool = pools.get(account.currency) ?? {
+      liquid: 0n,
+      investments: 0n,
+      liabilities: 0n,
+      hkd: 0n,
+      ids: [],
+    }
+
+    if (account.kind === 'credit_card') pool.liabilities += native
+    else if (account.kind === 'brokerage') pool.investments += native
+    else if (account.isLiquid) pool.liquid += native
+    // A non-liquid, non-card, non-brokerage owned account (a fixed deposit,
+    // say) counts toward the total but never toward spendable liquidity.
+
+    pool.hkd += hkd
+    pool.ids.push(account.id)
+    pools.set(account.currency, pool)
+  }
+
+  return [...pools.entries()]
+    .map(([currency, pool]) => ({
+      currency,
+      liquidMinor: pool.liquid,
+      investmentsMinor: pool.investments,
+      liabilitiesMinor: pool.liabilities,
+      totalMinor: pool.liquid + pool.investments + pool.liabilities,
+      totalHkdMinor: pool.hkd,
+      accountIds: pool.ids,
+    }))
+    // Base currency first: it is where you live, so it is what you look at.
+    .sort((a, b) =>
+      a.currency === BASE_CURRENCY ? -1 : b.currency === BASE_CURRENCY ? 1 : a.currency.localeCompare(b.currency),
+    )
+}
+
+export function findPool(
+  pools: readonly CurrencyPool[],
+  currency: Currency,
+): CurrencyPool | undefined {
+  return pools.find((pool) => pool.currency === currency)
 }
 
 /**
@@ -306,4 +391,45 @@ export function ledgerIsBalanced(entries: readonly EntrySnapshot[]): boolean {
 
 export function hkd(amountMinor: bigint): Money {
   return { amountMinor, currency: BASE_CURRENCY }
+}
+
+/**
+ * Spending in one currency over an interval, in that currency's own units.
+ *
+ * Used to measure a pool's burn rate. Unlike `spentInInterval` this does not
+ * convert — a THB burn rate belongs in baht, because the floor it produces is
+ * compared against a baht balance.
+ */
+export function spentInCurrency(
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  currency: Currency,
+  interval: Interval,
+): bigint {
+  const owned = new Set(accounts.filter((a) => a.isOwn).map((a) => a.id))
+  const byTransaction = new Map<string, { delta: bigint; occurredAt: Date }>()
+
+  for (const entry of entries) {
+    if (!counts(entry)) continue
+    if (entry.currency !== currency) continue
+
+    const contribution = owned.has(entry.accountId) ? entry.amountMinor : 0n
+    const current = byTransaction.get(entry.transactionId)
+    byTransaction.set(entry.transactionId, {
+      delta: (current?.delta ?? 0n) + contribution,
+      occurredAt: current?.occurredAt ?? entry.occurredAt,
+    })
+  }
+
+  let total = 0n
+  for (const { delta, occurredAt } of byTransaction.values()) {
+    if (!contains(interval, occurredAt)) continue
+    if (delta < 0n) total += -delta
+  }
+  return total
+}
+
+/** Minor units per major unit, e.g. 100 for a 2-decimal currency. */
+export function minorFactor(currency: Currency): bigint {
+  return 10n ** BigInt(minorUnitsOf(currency))
 }

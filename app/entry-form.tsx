@@ -85,16 +85,21 @@ export function EntryForm({
       const parsed = parseAmountInput(amount, currency as Currency)
       if (parsed.amountMinor <= 0n) return null
 
+      // The HKD figure is only for the blended discretionary budget; the
+      // affordability check happens entirely inside the payment's own pool.
       const rateText = currency === 'HKD' ? '1' : rates[currency]
-      if (rateText === undefined) return null
-
       const hkdMinor =
-        currency === 'HKD' ? parsed.amountMinor : applyRate(parsed, parseRate(rateText)).amountMinor
+        currency === 'HKD'
+          ? parsed.amountMinor
+          : rateText === undefined
+            ? 0n
+            : applyRate(parsed, parseRate(rateText)).amountMinor
 
       return evaluatePayment(termsFromJson(terms), {
+        amountMinor: parsed.amountMinor,
+        currency: currency as Currency,
         amountHkdMinor: hkdMinor,
-        isDiscretionary:
-          categories.find((c) => c.id === categoryId)?.isDiscretionary ?? false,
+        isDiscretionary: categories.find((c) => c.id === categoryId)?.isDiscretionary ?? false,
       })
     } catch {
       // Mid-typing input ("12.", "-") is not an error worth shouting about;

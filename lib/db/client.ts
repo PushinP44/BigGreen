@@ -149,6 +149,8 @@ async function seedDevData(pg: PGlite): Promise<void> {
   )
   if ((existing.rows[0]?.n ?? 0) > 0) return
 
+  // Three pools (PLAN rev 4): HKD across the HK banks and wallets, USD at ZA,
+  // THB at Krung Thai. Foreign currency lives only in ZA and KTB.
   const seed: Array<[string, string, string, boolean, boolean, string | null, string | null]> = [
     // name, kind, currency, isLiquid, isOwn, institution, systemRole
     ['HSBC HKD', 'bank', 'HKD', true, true, 'hsbc', null],
@@ -157,8 +159,8 @@ async function seedDevData(pg: PGlite): Promise<void> {
     ['Octopus', 'ewallet', 'HKD', true, true, 'octopus', null],
     ['PayMe', 'ewallet', 'HKD', true, true, 'payme', null],
     ['HSBC Credit Card', 'credit_card', 'HKD', false, true, 'hsbc', null],
-    ['HSBC USD', 'bank', 'USD', true, true, 'hsbc', null],
-    ['Thai Baht', 'cash', 'THB', true, true, null, null],
+    ['ZA Bank USD', 'bank', 'USD', true, true, 'za', null],
+    ['Krung Thai (KTB)', 'bank', 'THB', true, true, 'ktb', null],
     ['Expenses', 'expense', 'HKD', false, false, null, 'expense'],
     ['Income', 'income', 'HKD', false, false, null, 'income'],
     ['Opening Equity', 'equity', 'HKD', false, false, null, 'opening_equity'],

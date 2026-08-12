@@ -2,13 +2,29 @@
 
 Personal money tracker across platforms. Base currency **HKD**.
 
-Status: plan approved for build. Last revised 2026-08-11 (rev 3).
+Status: plan approved for build. Last revised 2026-08-12 (rev 4).
 
 Stack: **Next.js (App Router) + TypeScript + Supabase (Postgres/Auth/RLS)**, deployed on Vercel.
 Primary input is **manual entry**. Optional Apple Pay tap capture, pending a spike.
 
-Currencies in active use: **HKD (base), THB, USD.**
+Currencies in active use: **HKD (accounting base), USD, THB** — held in three separate pools.
 
+> **Rev 4 made HKD an accounting unit only, and made the floor adaptive.**
+>
+> **Per-currency pools.** HKD remains the unit the ledger balances in — the zero-sum constraint
+> needs a common unit and a cross-currency transfer cannot balance without one. It is no longer
+> the unit anything is *reported* in. Balances, net worth and safe-to-spend are per currency.
+>
+> This is a correctness fix, not a display preference: **THB at KTB cannot buy lunch in Hong
+> Kong.** Blending it into a single "safe to spend HK$X" states that money is available today
+> when it is days and a spread away — exactly the failure §5 already warns about in the
+> credit-card case. Owner's instruction, 2026-08-12: *"no need to make all to HKD."*
+>
+> **Runway floor.** The emergency floor is `floor_days × daily_burn` rather than a fixed
+> amount. A constant cushion is a guess that goes stale silently; days-of-cover self-calibrates
+> and the verdict it produces ("this leaves 41 days of cover") answers the question a person is
+> actually asking.
+>
 > **Rev 3 cut the import pipeline.** Owner's instruction, 2026-08-11: *"no need to create csv or
 > statement reader since it is for personal use; keep it clean and easy."* Statement/CSV/PDF
 > import is out (§1), which removes the parser registry, the golden-fixture apparatus, and most
@@ -238,8 +254,15 @@ ingest_sources  id, user_id, source_key, last_attempt_at, last_success_at,
 
 rule_settings   id, user_id, key, value_json, effective_from
 -- Thresholds are DATA, not constants. Changing 2000→3000 is a row, not a
---   deploy. Keys: emergency_floor, discretionary_budget, horizon_days,
---   allocation_threshold, allocation_pct.
+--   deploy. Keys:
+--     safety.floor_days                 45
+--     safety.declared_monthly_spend     seed for daily_burn until measured
+--     safety.discretionary_budget       HKD/month, blended (see §5)
+--     safety.horizon_days               30
+--     safety.burn_window_days           90
+--     safety.min_history_days           30 — below this, use the declared burn
+--     allocation.threshold              200000 (2,000 HKD)
+--     allocation.pct                    0.30
 ```
 
 ### `holdings` is derived, never written
@@ -311,20 +334,60 @@ fallback. Budget UI effort accordingly.
 The brief did not define this. Here is a definition that is deterministic, explainable, and
 testable — three properties that matter more than sophistication.
 
-```
-liquid          = Σ balances of accounts where is_liquid AND is_own
-committed       = Σ scheduled EXTERNAL outflows with due_date ≤ today + horizon_days
-                + Σ outstanding credit-card balances
-floor           = emergency_floor_hkd            (setting, default 10,000 HKD)
-available       = liquid − committed − floor
+### Per currency, not blended
 
-discretionary_spent_mtd = Σ posted outflows this month in discretionary categories
-discretionary_budget    = setting, default 6,000 HKD/month
+Every term below is computed **within one currency pool** and in that pool's own units. A
+payment in THB is judged against your THB, because that is the money that can actually pay it.
+
+| Pool | Accounts | Has a floor? |
+|---|---|---|
+| **HKD** | HSBC, Mox, ZA (HKD), Octopus, PayMe, HSBC card | Yes — this is where you live |
+| **USD** | ZA Bank USD | No by default: savings, not spending money |
+| **THB** | KTB | No by default; set one if you spend meaningfully in Thailand |
+
+A pool with no floor still produces a verdict — it just uses `floor = 0`, so UNSAFE means
+"this would overdraw you", not "this breaches your cushion". A pool that has no floor says so
+rather than implying one.
+
+### The terms
+
 ```
+liquid      = Σ balances of accounts in this pool where is_liquid AND is_own
+committed   = Σ scheduled EXTERNAL outflows with due_date ≤ today + horizon_days
+            + Σ outstanding credit-card balances in this pool
+floor       = floor_days × daily_burn          ← adaptive, see below
+available   = liquid − committed − floor
+runway_days = (liquid − committed) / daily_burn
+```
+
+**`daily_burn` is declared, then measured.** There is no spending history on day one, so a rule
+built on measured averages cannot start. You seed it with a rough monthly figure; once the
+ledger holds at least `min_history_days` (default 30), the rule switches to the trailing
+`burn_window_days` (default 90) average and the UI says which one it is using. A number derived
+from your real spending is better than a number you guessed, but only once it exists.
+
+Defaults: `floor_days = 45`, `horizon_days = 30`. With a declared HK$8,000/month that is a
+floor of roughly HK$11,800 — close to rev 1's fixed HK$10,000 guess, which is mildly reassuring
+about both.
+
+### The discretionary budget is deliberately *not* per pool
+
+```
+discretionary_spent_mtd = Σ posted outflows this month in discretionary categories,
+                          across ALL pools, in HKD
+discretionary_budget    = setting, in HKD per month
+```
+
+This is the one place blending is correct, and the distinction is worth stating plainly:
+
+- **Liquidity is per pool** because you cannot spend baht in Hong Kong. It is a question about
+  what money can physically reach a payment.
+- **Budget is about behaviour.** Eating out in Bangkok is the same habit as eating out in
+  Kowloon, and a budget that let you evade it by crossing a border would be measuring nothing.
 
 All of `today`, `this month`, and the horizon window are evaluated in `Asia/Hong_Kong` (D4).
 
-Verdict for a proposed payment of `amount` (converted to HKD):
+Verdict for a proposed payment of `amount`, judged against its own currency's pool:
 
 | Condition | Verdict |
 |---|---|
@@ -360,16 +423,18 @@ Upgrade path if it starts to annoy you: add the three cycle fields and a
 
 ### Other constraints on this rule
 
-- `horizon_days` default **30**, a setting.
 - `available` may be negative. The UI states the shortfall plainly rather than clamping to
   zero; every payment is UNSAFE in that state and that is the correct answer.
 - The function returns not just a verdict but a **reason object**: which term dominated, the
-  numbers behind it, and what the payment would leave you with. A red badge with no explanation
-  gets ignored within a week.
+  numbers behind it, what the payment would leave you with, and **the runway it costs you**.
+  A red badge with no explanation gets ignored within a week.
+- Every threshold is a row in `rule_settings`, editable in the app. Rev 1 through 3 hardcoded
+  guesses; the point of the settings page is that the owner never has to accept mine.
 - Pure function in `lib/domain/safety.ts`. No DB access, no clock access. Inputs are a plain
   snapshot struct plus an explicit `now`.
 - Property test: verdict is monotonic in `amount` — increasing the amount can never move the
-  verdict from UNSAFE toward SAFE.
+  verdict from UNSAFE toward SAFE. This must continue to hold with an adaptive floor, where the
+  floor itself no longer depends on the payment.
 
 ---
 
@@ -377,11 +442,14 @@ Upgrade path if it starts to annoy you: add the three cycle fields and a
 
 Above the fold, in priority order:
 
-1. **Safe-to-spend today** — one number (`available`), with the three terms that produced it
-   expandable underneath.
-2. **Net worth** — liquid + investments − liabilities, with a sparkline. Until P6 ships this is
-   liquid − liabilities and **says so**; a net-worth number that quietly omits your portfolio is
-   worse than one that admits the gap.
+1. **Safe-to-spend today, per pool** — one card per currency you hold, each showing `available`
+   in its own units, the terms that produced it, and the runway in days. The HKD card leads
+   because that is where you live; USD and THB follow.
+2. **Net worth** — three figures, one per pool, with `≈ HK$X at today's rate` as an explicitly
+   secondary line. The estimate is never the headline: it moves when the market moves, and a
+   net worth that changes because of a rate you did not act on is noise presented as news.
+   Until P4 ships, investments are excluded and the card **says so** — a net-worth number that
+   quietly omits your portfolio is worse than one that admits the gap.
 3. **This month** — spent vs discretionary budget as a bar; income received; allocation
    compliance (did you actually move the 30%?).
 4. **Upcoming** — scheduled outflows in the next 30 days, the same set `committed` uses.
@@ -673,26 +741,28 @@ phases they touch:
 | Credit-card modelling? | Keep it simple | No cycle fields; full balance committed (§5) |
 | Apple Pay usage? | Mostly Apple Pay | Tap capture kept as optional P5, gated on a spike |
 | Legacy cost basis? | Only for some | `avg_cost` nullable; `COST UNKNOWN` chip; P/L excludes |
-| **Currencies?** | **HKD, THB, USD** | FX live from day one; three-currency tests are priority |
+| **Currencies?** | **HKD, USD, THB** | FX live from day one; three-currency tests are priority |
+| **Where do the foreign currencies live?** | ZA Bank (HKD + USD), KTB (THB) | Three pools; no CNY, so the currency set is unchanged |
+| **Blend to HKD?** | **No** — "no need to make all to HKD" | Rev 4: HKD is the accounting unit only; reporting and safety are per pool |
+| **Floor definition?** | Days of cover, not a fixed amount | `floor = floor_days × daily_burn`, self-calibrating |
+| **Typical monthly spend?** | Under HK$8,000 | Seeds `daily_burn` until 30 days of history exist |
+| **Discretionary budget?** | Owner sets an exact amount | Hence the settings page; the default is conservative and clearly labelled a placeholder |
 | **Import pipeline?** | **"no need… keep it clean and easy"** | CSV/statement/PDF import cut; parsers, fixtures and `inbox_items` cut with it; old P4 gone |
 | Dev database? | PGlite for tests, cloud Supabase for the app | No Docker; migration + RLS tests run in-process |
 | Octopus / PayMe? | Real accounts with balances | Top-ups are own-account transfers; taps are spending |
 
 **Still open:**
 
-1. **Emergency floor and discretionary budget.** Defaults 10,000 and 6,000 HKD/month are
-   guesses. Low-stakes: both are rows in `rule_settings`, changeable any time. But the safety
-   rule is worthless until they're your real numbers — set them the day P2 ships.
-2. **Savings vs investing split.** The brief says "30% for savings" under an "investment
+1. **The exact discretionary budget.** Owner will set it in the app. Until then the default is
+   a placeholder and is labelled as one.
+2. **Do USD and THB want floors?** Neither has one by default — USD reads as savings and THB as
+   travel money. If either becomes money you live on, set `floor_days` for that pool.
+3. **Savings vs investing split.** The brief says "30% for savings" under an "investment
    notice". Currently building a single 30% sleeve. If you want 10% cash / 20% invested, say so
    before P3; the engine supports it, the default doesn't use it.
-3. **What do you actually hold?** Sizes P4 and determines whether manual price entry is a
+4. **What do you actually hold?** Sizes P4 and determines whether manual price entry is a
    two-minute monthly chore or a real burden.
-4. **Email parsing — keep or cut?** Standing recommendation: cut (§7.0). Decide at the P2
-   checkpoint.
-5. **THB context.** Are the Thai baht amounts a Thai bank account, cash, or spending abroad on
-   an HK card? It changes whether THB needs its own account or is only ever a transaction
-   currency — a small schema-seeding question, not a design one.
+5. **Email parsing — keep or cut?** Standing recommendation: cut (§7.0).
 
 ---
 
