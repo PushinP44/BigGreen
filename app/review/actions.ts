@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 
 export interface ReviewState {
   readonly error?: string
@@ -27,7 +27,7 @@ export async function resolvePending(
   if (action !== 'confirm' && action !== 'discard') return { error: 'unknown action' }
 
   try {
-    const db = await getDb()
+    const { db } = await requireSessionDb()
     const status = action === 'confirm' ? 'posted' : 'void'
 
     const result = await db.query(

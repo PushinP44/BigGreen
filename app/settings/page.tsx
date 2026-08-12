@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import { listCreditCards, loadSafetySettings } from '@/lib/read/settings'
 import { SettingsFormView } from './settings-form'
 import { CardSettings } from './cards'
@@ -7,7 +7,7 @@ import { CardSettings } from './cards'
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
-  const db = await getDb()
+  const { db } = await requireSessionDb()
   const [{ form }, cards] = await Promise.all([loadSafetySettings(db), listCreditCards(db)])
 
   return (

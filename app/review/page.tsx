@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import { formatMoney, money, isCurrency, type Currency } from '@/lib/domain/money'
 import { zonedParts } from '@/lib/domain/clock'
 import { PendingRow } from './pending-row'
@@ -18,7 +18,7 @@ interface PendingTransaction {
 }
 
 export default async function ReviewPage() {
-  const db = await getDb()
+  const { db } = await requireSessionDb()
 
   const result = await db.query<PendingTransaction>(`
     SELECT DISTINCT ON (t.id)

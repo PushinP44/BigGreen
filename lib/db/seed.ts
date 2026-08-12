@@ -38,28 +38,50 @@ export const APP_USER_ID = '00000000-0000-4000-8000-000000000001'
  * test the allocation rule uses to tell new money from your own money moving
  * around (PLAN §8).
  */
-export const ACCOUNT_SEED: ReadonlyArray<{
+/**
+ * The accounts every ledger needs, regardless of whose it is.
+ *
+ * These are the outside-world counterparties (expense/income) and the two the
+ * FX policy books to. Without them a transaction has nothing to balance
+ * against, so they are created for every user at sign-up.
+ *
+ * Note what is NOT here: real bank accounts. Those are personal, and seeding a
+ * new user with someone else's HSBC and Octopus accounts would be both wrong
+ * and faintly alarming.
+ */
+export const SYSTEM_ACCOUNT_SEED: ReadonlyArray<{
+  name: string
+  kind: string
+  systemRole: string
+}> = [
+  { name: 'Expenses', kind: 'expense', systemRole: 'expense' },
+  { name: 'Income', kind: 'income', systemRole: 'income' },
+  { name: 'Opening Equity', kind: 'equity', systemRole: 'opening_equity' },
+  { name: 'FX Rounding', kind: 'equity', systemRole: 'fx_rounding' },
+  { name: 'FX Gain/Loss', kind: 'expense', systemRole: 'fx_gain_loss' },
+]
+
+/**
+ * The owner's own accounts.
+ *
+ * Used by the local development database and by `pnpm db:seed`, never by
+ * sign-up. Kept here so local and the owner's real database stay identical.
+ */
+export const OWNER_ACCOUNT_SEED: ReadonlyArray<{
   name: string
   kind: string
   currency: string
   isLiquid: boolean
-  isOwn: boolean
   institution: string | null
-  systemRole: string | null
 }> = [
-  { name: 'HSBC HKD', kind: 'bank', currency: 'HKD', isLiquid: true, isOwn: true, institution: 'hsbc', systemRole: null },
-  { name: 'ZA Bank', kind: 'bank', currency: 'HKD', isLiquid: true, isOwn: true, institution: 'za', systemRole: null },
-  { name: 'Mox', kind: 'bank', currency: 'HKD', isLiquid: true, isOwn: true, institution: 'mox', systemRole: null },
-  { name: 'Octopus', kind: 'ewallet', currency: 'HKD', isLiquid: true, isOwn: true, institution: 'octopus', systemRole: null },
-  { name: 'PayMe', kind: 'ewallet', currency: 'HKD', isLiquid: true, isOwn: true, institution: 'payme', systemRole: null },
-  { name: 'HSBC Credit Card', kind: 'credit_card', currency: 'HKD', isLiquid: false, isOwn: true, institution: 'hsbc', systemRole: null },
-  { name: 'ZA Bank USD', kind: 'bank', currency: 'USD', isLiquid: true, isOwn: true, institution: 'za', systemRole: null },
-  { name: 'Krung Thai (KTB)', kind: 'bank', currency: 'THB', isLiquid: true, isOwn: true, institution: 'ktb', systemRole: null },
-  { name: 'Expenses', kind: 'expense', currency: 'HKD', isLiquid: false, isOwn: false, institution: null, systemRole: 'expense' },
-  { name: 'Income', kind: 'income', currency: 'HKD', isLiquid: false, isOwn: false, institution: null, systemRole: 'income' },
-  { name: 'Opening Equity', kind: 'equity', currency: 'HKD', isLiquid: false, isOwn: false, institution: null, systemRole: 'opening_equity' },
-  { name: 'FX Rounding', kind: 'equity', currency: 'HKD', isLiquid: false, isOwn: false, institution: null, systemRole: 'fx_rounding' },
-  { name: 'FX Gain/Loss', kind: 'expense', currency: 'HKD', isLiquid: false, isOwn: false, institution: null, systemRole: 'fx_gain_loss' },
+  { name: 'HSBC HKD', kind: 'bank', currency: 'HKD', isLiquid: true, institution: 'hsbc' },
+  { name: 'ZA Bank', kind: 'bank', currency: 'HKD', isLiquid: true, institution: 'za' },
+  { name: 'Mox', kind: 'bank', currency: 'HKD', isLiquid: true, institution: 'mox' },
+  { name: 'Octopus', kind: 'ewallet', currency: 'HKD', isLiquid: true, institution: 'octopus' },
+  { name: 'PayMe', kind: 'ewallet', currency: 'HKD', isLiquid: true, institution: 'payme' },
+  { name: 'HSBC Credit Card', kind: 'credit_card', currency: 'HKD', isLiquid: false, institution: 'hsbc' },
+  { name: 'ZA Bank USD', kind: 'bank', currency: 'USD', isLiquid: true, institution: 'za' },
+  { name: 'Krung Thai (KTB)', kind: 'bank', currency: 'THB', isLiquid: true, institution: 'ktb' },
 ]
 
 /**
@@ -86,28 +108,22 @@ export interface SeedResult {
   readonly categoriesCreated: number
 }
 
-export async function seedInitialData(db: SeedQuery, userId: string): Promise<SeedResult> {
-  const existing = await db.query('SELECT count(*)::int AS n FROM accounts WHERE user_id = $1', [
-    userId,
-  ])
-  if (Number(existing.rows[0]?.n ?? 0) > 0) {
-    return { accountsCreated: 0, categoriesCreated: 0 }
-  }
+/**
+ * Everything a brand-new account needs to be usable: the system accounts and a
+ * starter category list. Idempotent, so a retried sign-up is harmless.
+ */
+export async function provisionUser(db: SeedQuery, userId: string): Promise<SeedResult> {
+  const existing = await db.query(
+    "SELECT 1 AS present FROM accounts WHERE user_id = $1 AND system_role = 'expense' LIMIT 1",
+    [userId],
+  )
+  if (existing.rows.length > 0) return { accountsCreated: 0, categoriesCreated: 0 }
 
-  for (const account of ACCOUNT_SEED) {
+  for (const account of SYSTEM_ACCOUNT_SEED) {
     await db.query(
-      `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, institution, system_role)
-       VALUES ($1, $2, $3::account_kind, $4, $5, $6, $7, $8)`,
-      [
-        userId,
-        account.name,
-        account.kind,
-        account.currency,
-        account.isLiquid,
-        account.isOwn,
-        account.institution,
-        account.systemRole,
-      ],
+      `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, system_role)
+       VALUES ($1, $2, $3::account_kind, 'HKD', false, false, $4)`,
+      [userId, account.name, account.kind, account.systemRole],
     )
   }
 
@@ -118,5 +134,35 @@ export async function seedInitialData(db: SeedQuery, userId: string): Promise<Se
     )
   }
 
-  return { accountsCreated: ACCOUNT_SEED.length, categoriesCreated: CATEGORY_SEED.length }
+  return {
+    accountsCreated: SYSTEM_ACCOUNT_SEED.length,
+    categoriesCreated: CATEGORY_SEED.length,
+  }
+}
+
+/**
+ * The owner's own setup: system accounts plus their real banks. Used by local
+ * development and `pnpm db:seed`, never by sign-up.
+ */
+export async function seedInitialData(db: SeedQuery, userId: string): Promise<SeedResult> {
+  const provisioned = await provisionUser(db, userId)
+
+  const owned = await db.query(
+    'SELECT 1 AS present FROM accounts WHERE user_id = $1 AND is_own LIMIT 1',
+    [userId],
+  )
+  if (owned.rows.length > 0) return provisioned
+
+  for (const account of OWNER_ACCOUNT_SEED) {
+    await db.query(
+      `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, institution)
+       VALUES ($1, $2, $3::account_kind, $4, $5, true, $6)`,
+      [userId, account.name, account.kind, account.currency, account.isLiquid, account.institution],
+    )
+  }
+
+  return {
+    accountsCreated: provisioned.accountsCreated + OWNER_ACCOUNT_SEED.length,
+    categoriesCreated: provisioned.categoriesCreated,
+  }
 }

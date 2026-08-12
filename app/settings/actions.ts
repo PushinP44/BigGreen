@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import { parseAmountInput, type Currency } from '@/lib/domain/money'
 import { putPoolSetting, putSetting, SETTING_KEYS } from '@/lib/read/settings'
 
@@ -43,7 +43,7 @@ export async function saveSettings(
   }
 
   try {
-    const db = await getDb()
+    const { db } = await requireSessionDb()
 
     const budget = parseAmountInput(parsed.data.discretionaryBudget, 'HKD')
     if (budget.amountMinor < 0n) return { error: 'discretionary budget cannot be negative' }
@@ -94,7 +94,7 @@ export async function saveCard(
   formData: FormData,
 ): Promise<SettingsState> {
   try {
-    const db = await getDb()
+    const { db } = await requireSessionDb()
     const ids = formData.getAll('cardIds').map(String)
 
     for (const id of ids) {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import { recordSimpleTransaction, recordTransfer } from '@/lib/ledger/record'
 import { syncRates } from '@/lib/fx/frankfurter'
 
@@ -59,7 +59,7 @@ export async function addTransaction(
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'invalid input' }
 
     try {
-      const db = await getDb()
+      const { db } = await requireSessionDb()
       const toAmount = parsed.data.toAmount?.trim()
       const result = await recordTransfer(db, {
         fromAccountId: parsed.data.fromAccountId,
@@ -90,7 +90,7 @@ export async function addTransaction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'invalid input' }
 
   try {
-    const db = await getDb()
+    const { db } = await requireSessionDb()
     const result = await recordSimpleTransaction(db, {
       accountId: parsed.data.accountId,
       amount: parsed.data.amount,
@@ -112,7 +112,7 @@ export async function addTransaction(
 
 export async function refreshRates(_previous: ActionState): Promise<ActionState> {
   try {
-    const db = await getDb()
+    const { db } = await requireSessionDb()
     const result = await syncRates(db)
     revalidatePath('/')
 

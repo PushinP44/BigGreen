@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import {
   accountBalances,
   currencyPools,
@@ -29,7 +29,7 @@ import { RefreshRates } from './refresh-rates'
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  const db = await getDb()
+  const { db, email } = await requireSessionDb()
 
   const [snapshot, transactions, fxStatus, categories, rates, { settings }] = await Promise.all([
     loadLedgerSnapshot(db),
@@ -108,12 +108,22 @@ export default async function Home() {
               {pendingCount} to review
             </Link>
           ) : null}
+          <Link href="/accounts" className={chip}>
+            Accounts
+          </Link>
           <Link href="/settings" className={chip}>
             Settings
           </Link>
           <a href="/api/export?format=csv" className={chip}>
             Export
           </a>
+          {email ? (
+            <form action="/logout" method="post">
+              <button type="submit" className={chip} title={email}>
+                Sign out
+              </button>
+            </form>
+          ) : null}
         </nav>
       </header>
 
@@ -199,6 +209,15 @@ export default async function Home() {
 
       <section className="flex flex-col gap-4">
         <h2 className={sectionHeading}>Record a transaction</h2>
+        {ownAccounts.length === 0 ? (
+          <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-(--color-muted)">
+            No accounts yet, so there is nowhere to record a transaction.{' '}
+            <Link href="/accounts" className="text-(--color-green) underline">
+              Add your first account
+            </Link>{' '}
+            to get started.
+          </p>
+        ) : (
         <EntryForm
           accounts={ownAccounts.map((a) => ({
             id: a.id,
@@ -213,6 +232,7 @@ export default async function Home() {
           terms={termsToJson(terms)}
           rates={rates}
         />
+        )}
       </section>
 
       <section className="flex flex-col gap-3">

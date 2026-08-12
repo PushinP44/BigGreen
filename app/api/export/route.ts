@@ -1,4 +1,4 @@
-import { getDb } from '@/lib/db/client'
+import { requireSessionDb } from '@/lib/db/session'
 import { toLocalDate } from '@/lib/domain/clock'
 import { buildExportRows, toCsv } from '@/lib/read/export'
 
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   const format = new URL(request.url).searchParams.get('format') === 'json' ? 'json' : 'csv'
 
-  const db = await getDb()
+  const { db } = await requireSessionDb()
   const rows = await buildExportRows(db)
   const stamp = toLocalDate(new Date())
 

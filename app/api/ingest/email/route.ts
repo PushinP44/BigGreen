@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getDb } from '@/lib/db/client'
+import { DEV_FALLBACK_USER_ID } from '@/lib/supabase/server'
 import { ingestEmail, verifySignature } from '@/lib/ingest/email'
 import { loadSafetySettings } from '@/lib/read/settings'
 
@@ -63,8 +64,17 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invalid receivedAt' }, { status: 400 })
   }
 
+  // Called by the Apps Script, not by a browser, so there is no session to
+  // read. The target user comes from configuration rather than from the
+  // payload — and the HMAC is what makes that safe.
+  //
+  // NOT MULTI-USER YET: one global secret writes to one configured account. A
+  // public build needs a per-user secret, stored against the account and looked
+  // up before verification, or any holder of the secret could write to anyone.
+  const targetUserId = process.env.EMAIL_INGEST_USER_ID ?? DEV_FALLBACK_USER_ID
+
   try {
-    const db = await getDb()
+    const db = await getDb(targetUserId)
     const { settings } = await loadSafetySettings(db)
 
     const outcome = await ingestEmail(
