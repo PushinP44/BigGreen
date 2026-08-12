@@ -17,6 +17,9 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    // `scripts/` runs through Node's native type stripping, which needs the
+    // real `.ts` extension on relative imports.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",

@@ -18,15 +18,15 @@ import 'server-only'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PGlite } from '@electric-sql/pglite'
+// Type-only, so this does not pull the driver into the dev bundle.
+import type { Sql, TransactionSql } from 'postgres'
+import { APP_USER_ID, seedInitialData } from './seed'
 
 const DEV_DATA_DIR = join(process.cwd(), '.pglite')
 const MIGRATIONS_DIR = join(process.cwd(), 'supabase', 'migrations')
 
-/**
- * Single dev identity. Real Supabase Auth arrives in P1; until then every row
- * is owned by this uuid so the RLS policies are exercised rather than bypassed.
- */
-export const DEV_USER_ID = '00000000-0000-4000-8000-000000000001'
+/** Re-exported for callers that already import from this module. */
+export const DEV_USER_ID = APP_USER_ID
 
 export interface QueryResult<T> {
   rows: T[]
@@ -71,7 +71,10 @@ function withTransaction(
  * Next.js dev reloads modules on every edit; without a global the app would
  * open a second PGlite instance against the same directory and lock it.
  */
-const globalForDb = globalThis as unknown as { __bigGreenPglite?: Promise<PGlite> }
+const globalForDb = globalThis as unknown as {
+  __bigGreenPglite?: Promise<PGlite>
+  __bigGreenPg?: Sql
+}
 
 const AUTH_BOOTSTRAP = `
   DO $$ BEGIN
@@ -139,70 +142,23 @@ function devDatabase(): Promise<PGlite> {
 }
 
 /**
- * Accounts matching the real institution set (PLAN §7.1), plus the system
- * accounts the double-entry and FX policies need. Idempotent.
+ * Seed the development database from the shared definition in `seed.ts`, so
+ * local and Supabase cannot drift apart. Idempotent.
  */
 async function seedDevData(pg: PGlite): Promise<void> {
-  const existing = await pg.query<{ n: number }>(
-    'SELECT count(*)::int AS n FROM accounts WHERE user_id = $1',
-    [DEV_USER_ID],
+  await seedInitialData(
+    {
+      async query(sql: string, params: unknown[] = []) {
+        const result = await pg.query<Record<string, unknown>>(sql, params)
+        return { rows: result.rows }
+      },
+    },
+    DEV_USER_ID,
   )
-  if ((existing.rows[0]?.n ?? 0) > 0) return
 
-  // Three pools (PLAN rev 4): HKD across the HK banks and wallets, USD at ZA,
-  // THB at Krung Thai. Foreign currency lives only in ZA and KTB.
-  const seed: Array<[string, string, string, boolean, boolean, string | null, string | null]> = [
-    // name, kind, currency, isLiquid, isOwn, institution, systemRole
-    ['HSBC HKD', 'bank', 'HKD', true, true, 'hsbc', null],
-    ['ZA Bank', 'bank', 'HKD', true, true, 'za', null],
-    ['Mox', 'bank', 'HKD', true, true, 'mox', null],
-    ['Octopus', 'ewallet', 'HKD', true, true, 'octopus', null],
-    ['PayMe', 'ewallet', 'HKD', true, true, 'payme', null],
-    ['HSBC Credit Card', 'credit_card', 'HKD', false, true, 'hsbc', null],
-    ['ZA Bank USD', 'bank', 'USD', true, true, 'za', null],
-    ['Krung Thai (KTB)', 'bank', 'THB', true, true, 'ktb', null],
-    ['Expenses', 'expense', 'HKD', false, false, null, 'expense'],
-    ['Income', 'income', 'HKD', false, false, null, 'income'],
-    ['Opening Equity', 'equity', 'HKD', false, false, null, 'opening_equity'],
-    ['FX Rounding', 'equity', 'HKD', false, false, null, 'fx_rounding'],
-    ['FX Gain/Loss', 'expense', 'HKD', false, false, null, 'fx_gain_loss'],
-  ]
-
-  for (const [name, kind, currency, isLiquid, isOwn, institution, systemRole] of seed) {
-    await pg.query(
-      `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, institution, system_role)
-       VALUES ($1, $2, $3::account_kind, $4, $5, $6, $7, $8)`,
-      [DEV_USER_ID, name, kind, currency, isLiquid, isOwn, institution, systemRole],
-    )
-  }
-
-  // `is_discretionary` drives the CAUTION band of the safety rule (PLAN §5),
-  // so the split matters: it is "could I have skipped this?", not "was it
-  // nice?". Rent and utilities are not discretionary however much you dislike
-  // paying them.
-  const categorySeed: Array<[string, boolean]> = [
-    ['Food & Drink', true],
-    ['Groceries', false],
-    ['Transport', false],
-    ['Rent', false],
-    ['Utilities', false],
-    ['Health', false],
-    ['Shopping', true],
-    ['Entertainment', true],
-    ['Travel', true],
-    ['Fees & Charges', false],
-    ['Other', false],
-  ]
-
-  for (const [name, isDiscretionary] of categorySeed) {
-    await pg.query(
-      `INSERT INTO categories (user_id, name, is_discretionary) VALUES ($1, $2, $3)`,
-      [DEV_USER_ID, name, isDiscretionary],
-    )
-  }
-
-  // Placeholder rates so the multi-currency path is exercised before the
-  // Frankfurter job exists (P1). Marked 'manual' — they are not real quotes.
+  // Dev-only placeholder rates, so the multi-currency path has something to
+  // work with offline. Deliberately not part of the shared seed — invented
+  // rates have no business in the database that holds real balances.
   const today = new Date().toISOString().slice(0, 10)
   for (const [base, rate] of [
     ['USD', '7.83210000'],
@@ -215,6 +171,21 @@ async function seedDevData(pg: PGlite): Promise<void> {
       [DEV_USER_ID, base, today, rate],
     )
   }
+}
+
+// ── Supabase driver ─────────────────────────────────────────────────────────
+
+async function createPgClient(url: string): Promise<Sql> {
+  const { default: postgres } = await import('postgres')
+  return postgres(url, {
+    // Safe to pool: every statement runs in its own transaction and re-applies
+    // its role with SET LOCAL, so no connection can carry privileges or claims
+    // over to the next caller.
+    max: 5,
+    // Required by Supabase's transaction-mode pooler, harmless in session mode.
+    prepare: false,
+    idle_timeout: 20,
+  })
 }
 
 // ── Public interface ────────────────────────────────────────────────────────
@@ -256,19 +227,64 @@ export async function getDb(userId: string = DEV_USER_ID): Promise<Db> {
   }
 
   // Supabase path. Lazily imported so the dev path never loads a pg driver.
-  const { default: postgres } = await import('postgres')
-  const sql = postgres(url, { max: 1, prepare: false })
-  await sql`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: userId })}, false)`
+  //
+  // One client for the whole process, not one per request. `getDb()` is called
+  // on every render, and postgres.js clients hold their connections open until
+  // explicitly ended — creating one per call leaks a connection each time and
+  // exhausts the Supabase pooler (pool_size 15) within a dozen page loads.
+  // The global survives Next's dev-mode module reloading, same as PGlite above.
+  const sql = (globalForDb.__bigGreenPg ??= await createPgClient(url))
+  const claims = JSON.stringify({ sub: userId })
+
+  /**
+   * Every statement runs inside a transaction that drops to the `authenticated`
+   * role first.
+   *
+   * This connects as `postgres`, and a Postgres superuser BYPASSES row-level
+   * security outright — so without the `SET LOCAL ROLE` below, every policy in
+   * migration 0001 is inert and the RLS test suite is proving something about a
+   * configuration that never runs. `SET LOCAL` (rather than a session-wide
+   * `SET`) is what makes it survive postgres.js transparently reconnecting: a
+   * dropped connection cannot silently restore superuser privileges mid-request,
+   * because the role is re-applied inside each transaction.
+   *
+   * Cost is one round trip per query. For a single-user tracker doing a handful
+   * of queries per page that is not worth optimising away, and certainly not
+   * worth trading RLS for.
+   */
+  const enterAuthenticated = async (tx: TransactionSql) => {
+    await tx`SELECT set_config('request.jwt.claims', ${claims}, true)`
+    await tx`SET LOCAL ROLE authenticated`
+  }
 
   const db: Db = {
     async query<T>(text: string, params: unknown[] = []) {
-      const rows = (await sql.unsafe(text, params as never[])) as unknown as T[]
-      return { rows }
+      const rows = await sql.begin(async (tx) => {
+        await enterAuthenticated(tx)
+        return tx.unsafe(text, params as never[])
+      })
+      return { rows: rows as unknown as T[] }
     },
-    transaction: withTransaction(
-      (text) => sql.unsafe(text),
-      () => db,
-    ),
+
+    async transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
+      // One transaction for the whole callback — nesting `query`'s own
+      // transaction inside this would turn each statement into a savepoint and
+      // defeat the deferred zero-sum trigger, which only fires at COMMIT.
+      return sql.begin(async (tx) => {
+        await enterAuthenticated(tx)
+        const scoped: Db = {
+          async query<R>(text: string, params: unknown[] = []) {
+            const rows = await tx.unsafe(text, params as never[])
+            return { rows: rows as unknown as R[] }
+          },
+          // Already inside a transaction; running the callback directly keeps
+          // the single COMMIT the trigger depends on.
+          transaction: (inner) => inner(scoped),
+        }
+        return fn(scoped)
+      }) as T
+    },
   }
+
   return db
 }
