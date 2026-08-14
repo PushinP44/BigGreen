@@ -5,8 +5,11 @@ import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
 import { recordTransfer } from '@/lib/ledger/record'
 import { invertRate } from '@/lib/domain/fx'
+import { splitByWeight, type WeightedTarget } from '@/lib/domain/allocation'
 import { BASE_CURRENCY, convert, isCurrency, money, parseRate, toDecimalString } from '@/lib/domain/money'
 import { rateTableFor } from '@/lib/read/accounts'
+
+const FALLBACK_TARGET_ID = 'fallback'
 
 export interface AllocationActionState {
   readonly error?: string
@@ -16,12 +19,21 @@ export interface AllocationActionState {
 const uuid = z.uuid()
 
 /**
- * Accept a suggestion: create a `scheduled` transfer for the suggested
+ * Accept a suggestion: create `scheduled` transfer(s) for the suggested
  * amount, from the account the inflow actually landed in (re-derived here,
  * not trusted from the form) to whichever of your accounts you picked.
  *
  * `scheduled`, not `posted` — accepting the suggestion is not the same event
  * as actually moving the money (PLAN §8).
+ *
+ * If you've set a target weight on any instrument, the amount splits across
+ * them (your chosen interpretation of "percentage": a share of new
+ * invest-money, not a rebalancing target) — one scheduled transfer per
+ * weighted instrument, description naming it, still all landing in the one
+ * account you picked below; go record the actual buy from there yourself
+ * once you've moved it (this module's `recordTrade` handles that). Weights
+ * that don't sum to 100% leave the gap in one more transfer with no
+ * instrument named — the existing unweighted behaviour, never dropped.
  */
 export async function acceptSuggestion(
   _previous: AllocationActionState,
@@ -72,25 +84,54 @@ export async function acceptSuggestion(
     if (!isCurrency(fromCurrency)) return { error: `unsupported currency ${fromCurrency}` }
 
     const suggestedHkd = money(BigInt(suggestion.suggested_hkd_minor), 'HKD')
-    let amount: string
 
+    // Convert the whole suggested amount to the source account's currency
+    // ONCE, then split that converted total — splitting first and converting
+    // each piece separately would round at every piece instead of once, and
+    // the pieces would no longer be guaranteed to sum to the converted whole.
+    let totalMinor: bigint
     if (fromCurrency === BASE_CURRENCY) {
-      amount = toDecimalString(suggestedHkd)
+      totalMinor = suggestedHkd.amountMinor
     } else {
       // fx_rates stores <currency>/HKD; converting HKD -> <currency> needs the inverse.
       const rates = await rateTableFor(db)
       const rate = rates[fromCurrency]
       if (!rate) return { error: `no ${fromCurrency}/HKD rate available to convert the suggestion` }
-      amount = toDecimalString(convert(suggestedHkd, fromCurrency, invertRate(parseRate(rate))))
+      totalMinor = convert(suggestedHkd, fromCurrency, invertRate(parseRate(rate))).amountMinor
     }
 
-    await recordTransfer(db, {
-      fromAccountId: suggestion.from_account_id,
-      toAccountId,
-      amount,
-      description: 'Allocation suggestion accepted',
-      status: 'scheduled',
-    })
+    const weighted = await db.query<{ id: string; symbol: string; target_weight_bps: number }>(
+      `SELECT id, symbol, target_weight_bps FROM instruments WHERE target_weight_bps > 0 ORDER BY symbol`,
+    )
+
+    const targets: WeightedTarget[] = weighted.rows.map((row) => ({
+      id: row.id,
+      weightBps: row.target_weight_bps,
+    }))
+    const totalWeightBps = targets.reduce((sum, t) => sum + t.weightBps, 0)
+    // The gap between what's weighted and 100% still goes somewhere — a
+    // synthetic target lets one splitByWeight call handle both cases at once
+    // and keeps the "always sums to the total" guarantee in one place.
+    if (totalWeightBps < 10000) {
+      targets.push({ id: FALLBACK_TARGET_ID, weightBps: 10000 - totalWeightBps })
+    }
+
+    const symbolById = new Map(weighted.rows.map((row) => [row.id, row.symbol]))
+    const split = splitByWeight(totalMinor, targets)
+
+    for (const piece of split) {
+      if (piece.amountMinor <= 0n) continue
+      const symbol = symbolById.get(piece.id)
+      await recordTransfer(db, {
+        fromAccountId: suggestion.from_account_id,
+        toAccountId,
+        amount: toDecimalString(money(piece.amountMinor, fromCurrency)),
+        description: symbol
+          ? `Allocation suggestion accepted — earmarked for ${symbol}`
+          : 'Allocation suggestion accepted',
+        status: 'scheduled',
+      })
+    }
 
     await db.query(
       `UPDATE allocation_suggestions SET state = 'accepted', decided_at = now() WHERE id = $1`,
@@ -99,7 +140,12 @@ export async function acceptSuggestion(
 
     revalidatePath('/')
     revalidatePath('/allocations')
-    return { ok: 'Scheduled — confirm it once you actually move the money.' }
+    return {
+      ok:
+        split.length > 1
+          ? `Scheduled ${split.length} transfers — confirm each once you actually move the money.`
+          : 'Scheduled — confirm it once you actually move the money.',
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'could not accept suggestion' }
   }

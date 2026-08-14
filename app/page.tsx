@@ -147,6 +147,9 @@ export default async function Home() {
           <Link href="/categories" className={chip}>
             Categories
           </Link>
+          <Link href="/portfolio" className={chip}>
+            Portfolio
+          </Link>
           <Link href="/settings" className={chip}>
             Settings
           </Link>
