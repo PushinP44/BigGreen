@@ -16,7 +16,8 @@ import 'server-only'
 import { z } from 'zod'
 import type { Db } from '@/lib/db/client'
 import { DEFAULT_SETTINGS, type PoolSettings, type SafetySettings } from '@/lib/domain/safety'
-import { isCurrency, type Currency } from '@/lib/domain/money'
+import type { AllocationSettings } from '@/lib/domain/allocation'
+import { isCurrency, parseRate, rateToString, type Currency } from '@/lib/domain/money'
 
 export const SETTING_KEYS = {
   floorDays: 'safety.floor_days',
@@ -27,7 +28,15 @@ export const SETTING_KEYS = {
   minHistoryDays: 'safety.min_history_days',
   creditModel: 'safety.credit_model',
   autoPostConfidence: 'ingest.auto_post_confidence',
+  allocationThreshold: 'allocation.threshold',
+  allocationPct: 'allocation.pct',
 } as const
+
+/** PLAN §8 defaults: 2,000 HKD inflow, 30% suggested. */
+export const DEFAULT_ALLOCATION_SETTINGS: AllocationSettings = {
+  thresholdHkdMinor: 200_000n,
+  pct: parseRate('0.30'),
+}
 
 /** Per-currency values are stored as one row keyed `<key>.<currency>`. */
 function poolKey(key: string, currency: Currency): string {
@@ -148,6 +157,60 @@ export async function loadSafetySettings(
       minHistoryDays,
       creditModel,
       autoPostConfidence,
+      usingDefaults,
+    },
+  }
+}
+
+export interface AllocationSettingsForm {
+  readonly thresholdHkdMinor: string
+  /** Decimal string, e.g. "0.30" — the form renders it as a percentage. */
+  readonly pct: string
+  readonly usingDefaults: Readonly<Record<string, boolean>>
+}
+
+/** Same versioned-by-`effective_from` pattern as `loadSafetySettings` (PLAN §8). */
+export async function loadAllocationSettings(
+  db: Db,
+  now: Date = new Date(),
+): Promise<{ settings: AllocationSettings; form: AllocationSettingsForm }> {
+  const result = await db.query<{ key: string; value_json: string }>(
+    `SELECT DISTINCT ON (key) key, value_json
+       FROM rule_settings
+      WHERE key IN ($1, $2) AND effective_from <= $3
+      ORDER BY key, effective_from DESC`,
+    [SETTING_KEYS.allocationThreshold, SETTING_KEYS.allocationPct, now.toISOString()],
+  )
+
+  const stored = new Map(result.rows.map((row) => [row.key, row.value_json]))
+  const usingDefaults: Record<string, boolean> = {}
+
+  const read = <T>(key: string, fallback: T, parse: (raw: unknown) => T): T => {
+    const raw = stored.get(key)
+    usingDefaults[key] = raw === undefined
+    if (raw === undefined) return fallback
+    try {
+      return parse(JSON.parse(raw))
+    } catch {
+      usingDefaults[key] = true
+      return fallback
+    }
+  }
+
+  const thresholdHkdMinor = read(
+    SETTING_KEYS.allocationThreshold,
+    DEFAULT_ALLOCATION_SETTINGS.thresholdHkdMinor,
+    (raw) => BigInt(minorAmount.parse(raw)),
+  )
+  const pct = read(SETTING_KEYS.allocationPct, DEFAULT_ALLOCATION_SETTINGS.pct, (raw) =>
+    parseRate(z.string().parse(raw)),
+  )
+
+  return {
+    settings: { thresholdHkdMinor, pct },
+    form: {
+      thresholdHkdMinor: thresholdHkdMinor.toString(),
+      pct: rateToString(pct),
       usingDefaults,
     },
   }
