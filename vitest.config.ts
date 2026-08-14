@@ -16,6 +16,11 @@ export default defineConfig({
     // those files in parallel inside one process is fine (PGlite is in-memory
     // and isolated per instance), but give them room.
     testTimeout: 30_000,
+    // `createTestDb()` runs in `beforeEach`, which `testTimeout` does not cover
+    // — only `hookTimeout` does. Left at the 10s default, enough concurrent
+    // PGlite instances spinning up at once (one per db test file) can exceed it
+    // under real machine load, failing `beforeEach` itself rather than a test.
+    hookTimeout: 30_000,
     coverage: {
       provider: 'v8',
       // The domain layer is the part that must never break (PLAN §10).

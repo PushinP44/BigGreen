@@ -355,10 +355,38 @@ describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => 
     expect(totals).toEqual([{ categoryId: 'cat-food', name: 'Food', averageHkdMinor: 12n, periodCount: 2 }])
   })
 
-  it('divides by every period, not just the ones a category appears in', () => {
-    // Spent only in July; June and August had nothing. A category that cost
-    // 9,000 once in three months averages 3,000/month, not 9,000 — the whole
-    // reason this divides by periodCount rather than "periods with spend".
+  it('divides by every ACTIVE period, not just the ones a category appears in', () => {
+    // Rent posted every month (an active ledger throughout); food only in
+    // July. Food's 9,000 averages 3,000/month across all 3 active months,
+    // not 9,000 — the whole reason this divides by periodCount rather than
+    // "periods this category appears in".
+    const june = monthInterval(new Date('2026-06-11T04:00:00Z'))
+    const entries = [
+      ...txn([['bank', -900000n], ['expenses', 900000n]], {
+        categoryId: 'cat-food',
+        occurredAt: july.start,
+      }),
+      ...txn([['bank', -800000n], ['expenses', 800000n]], {
+        categoryId: 'cat-rent',
+        occurredAt: june.start,
+      }),
+      ...txn([['bank', -800000n], ['expenses', 800000n]], {
+        categoryId: 'cat-rent',
+        occurredAt: august.start,
+      }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, [june, july, august])
+    const food = totals.find((t) => t.categoryId === 'cat-food')
+    expect(food).toEqual({ categoryId: 'cat-food', name: 'Food', averageHkdMinor: 300000n, periodCount: 3 })
+  })
+
+  it('excludes periods the ledger has nothing at all in — not just periods a category has nothing in', () => {
+    // A 2-month-old ledger, 3-month window: June predates any activity
+    // whatsoever. 9,000 spent once, in the ledger's one active month,
+    // averages 9,000/month — diluting it by the 2 months before the ledger
+    // existed would understate it by two thirds, the exact bug PLAN §5's
+    // declared-vs-measured burn rate guards against for the safety rule.
     const june = monthInterval(new Date('2026-06-11T04:00:00Z'))
     const entries = txn([['bank', -900000n], ['expenses', 900000n]], {
       categoryId: 'cat-food',
@@ -367,7 +395,7 @@ describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => 
 
     const totals = averageSpendByCategory(accounts, entries, categories, [june, july, august])
     expect(totals).toEqual([
-      { categoryId: 'cat-food', name: 'Food', averageHkdMinor: 300000n, periodCount: 3 },
+      { categoryId: 'cat-food', name: 'Food', averageHkdMinor: 900000n, periodCount: 1 },
     ])
   })
 
@@ -375,9 +403,18 @@ describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => 
     expect(averageSpendByCategory(accounts, [], categories, [])).toEqual([])
   })
 
-  it('keeps the average within one minor unit per period of the true summed total', () => {
+  it('returns an empty array when no period in the window has any ledger activity', () => {
+    const entries = txn([['bank', -100n], ['expenses', 100n]], {
+      categoryId: 'cat-food',
+      occurredAt: new Date('2026-01-11T04:00:00Z'), // well outside the window below
+    })
+    expect(averageSpendByCategory(accounts, entries, categories, [july, august])).toEqual([])
+  })
+
+  it('keeps the average within one minor unit per active period of the true summed total', () => {
     // The same residual-bound discipline as fx.ts's rounding assertion: any
-    // division introduces at most `count` minor units of rounding error.
+    // division introduces at most `divisor` minor units of rounding error —
+    // divisor here is active periods, not the nominal window length.
     fc.assert(
       fc.property(
         fc.array(fc.bigInt({ min: 0n, max: 10n ** 8n }), { minLength: 1, maxLength: 6 }),
@@ -391,14 +428,20 @@ describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => 
                   occurredAt: periods[i]!.start,
                 }),
           )
+          const activePeriods = perPeriodSpend.filter((amount) => amount !== 0n).length
 
           const totals = averageSpendByCategory(accounts, entries, categories, periods)
           const trueSum = perPeriodSpend.reduce((a, b) => a + b, 0n)
           const avg = totals.find((t) => t.categoryId === 'cat-food')?.averageHkdMinor ?? 0n
 
-          const diff = avg * BigInt(periods.length) - trueSum
+          if (activePeriods === 0) {
+            expect(totals).toEqual([])
+            return
+          }
+
+          const diff = avg * BigInt(activePeriods) - trueSum
           const magnitude = diff < 0n ? -diff : diff
-          expect(magnitude <= BigInt(periods.length)).toBe(true)
+          expect(magnitude <= BigInt(activePeriods)).toBe(true)
         },
       ),
       { numRuns: 200 },
