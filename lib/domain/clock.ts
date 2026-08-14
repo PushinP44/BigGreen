@@ -239,6 +239,38 @@ export function monthInterval(instant: Date, timeZone: string = APP_TIMEZONE): I
   }
 }
 
+/**
+ * The `count` complete calendar months immediately before the one containing
+ * `now`, oldest first. Deliberately excludes the current, in-progress month —
+ * folding it into an average would understate a category on day 2 and drag
+ * the figure around as the month fills in, the same "never present a partial
+ * figure as the whole" rule `netWorth.includesInvestments` already encodes.
+ * "This month" already has its own card; this is the history behind it.
+ */
+export function trailingMonthIntervals(
+  now: Date,
+  count: number,
+  timeZone: string = APP_TIMEZONE,
+): Interval[] {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new ClockError(`count must be a non-negative integer, got ${count}`)
+  }
+
+  const intervals: Interval[] = []
+  let endExclusive = startOfMonth(now, timeZone)
+
+  for (let i = 0; i < count; i++) {
+    // One day before this bucket's start falls in the prior month; its own
+    // start walks back exactly one calendar month, crossing a year boundary
+    // correctly via `addDays`' `Date.UTC` normalisation.
+    const start = startOfMonth(addDays(endExclusive, -1, timeZone), timeZone)
+    intervals.unshift({ start, endExclusive })
+    endExclusive = start
+  }
+
+  return intervals
+}
+
 /** `[startOfToday, startOfToday + days)` — the committed-outflow horizon (§5). */
 export function horizonInterval(
   now: Date,

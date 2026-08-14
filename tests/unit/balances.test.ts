@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import fc from 'fast-check'
 import {
   accountBalances,
+  averageSpendByCategory,
   discretionarySpentInInterval,
   incomeInInterval,
   ledgerIsBalanced,
   liquidHkdMinor,
   netWorth,
   spendByCategory,
+  spendByCategorySeries,
   spentInInterval,
   type AccountSnapshot,
   type CategorySnapshot,
@@ -319,6 +322,85 @@ describe('spending', () => {
   it('excludes a transfer from the category chart entirely', () => {
     const entries = txn([['bank', -500000n], ['broker', 500000n]], { categoryId: 'cat-food' })
     expect(spendByCategory(accounts, entries, categories, august)).toEqual([])
+  })
+})
+
+describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => {
+  const july = monthInterval(new Date('2026-07-11T04:00:00Z'))
+
+  it('computes each period independently, in period order', () => {
+    const entries = [
+      ...txn([['bank', -20000n], ['expenses', 20000n]], { categoryId: 'cat-food', occurredAt: july.start }),
+      ...txn([['bank', -50000n], ['expenses', 50000n]], { categoryId: 'cat-food', occurredAt: august.start }),
+    ]
+
+    const series = spendByCategorySeries(accounts, entries, categories, [july, august])
+    expect(series).toHaveLength(2)
+    expect(series[0]?.period).toBe(july)
+    expect(series[0]?.categories).toEqual([{ categoryId: 'cat-food', name: 'Food', hkdMinor: 20000n }])
+    expect(series[1]?.categories).toEqual([{ categoryId: 'cat-food', name: 'Food', hkdMinor: 50000n }])
+  })
+
+  it('averages with half-even rounding, not half-up', () => {
+    // 10 (July) + 15 (August) = 25 minor units over 2 periods = 12.5 → rounds
+    // to the even neighbour, 12 — not 13, which naive half-up would give.
+    const entries = [
+      ...txn([['bank', -10n], ['expenses', 10n]], { categoryId: 'cat-food', occurredAt: july.start }),
+      ...txn([['bank', -15n], ['expenses', 15n]], { categoryId: 'cat-food', occurredAt: august.start }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, [july, august])
+    expect(totals).toEqual([{ categoryId: 'cat-food', name: 'Food', averageHkdMinor: 12n, periodCount: 2 }])
+  })
+
+  it('divides by every period, not just the ones a category appears in', () => {
+    // Spent only in July; June and August had nothing. A category that cost
+    // 9,000 once in three months averages 3,000/month, not 9,000 — the whole
+    // reason this divides by periodCount rather than "periods with spend".
+    const june = monthInterval(new Date('2026-06-11T04:00:00Z'))
+    const entries = txn([['bank', -900000n], ['expenses', 900000n]], {
+      categoryId: 'cat-food',
+      occurredAt: july.start,
+    })
+
+    const totals = averageSpendByCategory(accounts, entries, categories, [june, july, august])
+    expect(totals).toEqual([
+      { categoryId: 'cat-food', name: 'Food', averageHkdMinor: 300000n, periodCount: 3 },
+    ])
+  })
+
+  it('returns an empty array for zero periods, without dividing by zero', () => {
+    expect(averageSpendByCategory(accounts, [], categories, [])).toEqual([])
+  })
+
+  it('keeps the average within one minor unit per period of the true summed total', () => {
+    // The same residual-bound discipline as fx.ts's rounding assertion: any
+    // division introduces at most `count` minor units of rounding error.
+    fc.assert(
+      fc.property(
+        fc.array(fc.bigInt({ min: 0n, max: 10n ** 8n }), { minLength: 1, maxLength: 6 }),
+        (perPeriodSpend) => {
+          const periods = perPeriodSpend.map((_, i) => monthInterval(new Date(Date.UTC(2026, i, 15))))
+          const entries = perPeriodSpend.flatMap((amount, i) =>
+            amount === 0n
+              ? []
+              : txn([['bank', -amount], ['expenses', amount]], {
+                  categoryId: 'cat-food',
+                  occurredAt: periods[i]!.start,
+                }),
+          )
+
+          const totals = averageSpendByCategory(accounts, entries, categories, periods)
+          const trueSum = perPeriodSpend.reduce((a, b) => a + b, 0n)
+          const avg = totals.find((t) => t.categoryId === 'cat-food')?.averageHkdMinor ?? 0n
+
+          const diff = avg * BigInt(periods.length) - trueSum
+          const magnitude = diff < 0n ? -diff : diff
+          expect(magnitude <= BigInt(periods.length)).toBe(true)
+        },
+      ),
+      { numRuns: 200 },
+    )
   })
 })
 
