@@ -47,7 +47,7 @@ pnpm verify       # typecheck + lint + test — run before committing
 pnpm db:generate  # regenerate SQL from lib/db/schema.ts
 pnpm db:migrate   # apply migrations to DATABASE_URL
 pnpm db:seed      # the owner's own accounts (never used by sign-up)
-pnpm db:claim <email>   # move pre-auth data to a real account
+pnpm db:claim <email>   # move pre-auth data to a real signed-in user
 ```
 
 > TypeScript is pinned to 6.x and ESLint to 9.x on purpose: typescript-eslint does not yet

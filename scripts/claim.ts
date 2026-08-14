@@ -1,19 +1,19 @@
 /**
- * Reassign the pre-auth data to a real signed-in account.
+ * Reassign the pre-auth data to a real signed-in user.
  *
  * Everything created before Supabase Auth existed belongs to the fixed
- * development uuid. Signing in with a real account produces a different uuid,
- * and RLS then correctly shows that account nothing — your banks, card terms
- * and settings are all still there, just owned by someone who no longer signs
- * in.
+ * development uuid. Signing in for real produces a different uuid, and RLS
+ * then correctly shows that user nothing — your banks, card terms and
+ * settings are all still there, just owned by a user id nobody signs in as
+ * anymore.
  *
  * Run once, after signing in for the first time:
  *
  *   pnpm db:claim you@example.com
  *
- * Idempotent, and refuses rather than merges if the target account already has
- * data of its own — silently combining two ledgers would be far worse than
- * stopping.
+ * Idempotent, and refuses rather than merges if the target user already has
+ * financial accounts of their own — silently combining two ledgers would be
+ * far worse than stopping.
  */
 
 import { readFileSync } from 'node:fs'
@@ -68,14 +68,14 @@ try {
 
   if (!target) {
     console.error(
-      `No account found for ${email}. Sign in through the app once first — the account is ` +
-        `created by that first sign-in.`,
+      `No signed-in user found for ${email}. Sign in through the app once first — the user ` +
+        `record is created by that first sign-in.`,
     )
     process.exit(1)
   }
 
   if (target.id === APP_USER_ID) {
-    console.log('That account already owns the data. Nothing to do.')
+    console.log('That user already owns the data. Nothing to do.')
     process.exit(0)
   }
 
@@ -95,12 +95,12 @@ try {
   }
 
   // Provisioning at sign-in creates five system accounts. More than that means
-  // the account has been used, and merging two ledgers is not something to do
-  // implicitly.
+  // this user has been used already, and merging two ledgers is not something
+  // to do implicitly.
   if (existing > 5) {
     console.error(
-      `${email} already has ${existing} accounts of its own. Refusing to merge two ledgers — ` +
-        `sort out which one you want to keep first.`,
+      `${email} already has ${existing} financial accounts of their own. Refusing to merge ` +
+        `two ledgers — sort out which one you want to keep first.`,
     )
     process.exit(1)
   }
