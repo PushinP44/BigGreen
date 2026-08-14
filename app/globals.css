@@ -72,3 +72,54 @@
     color: var(--color-ink);
   }
 }
+
+/*
+  smart_alert: a brief, decorative reaction to a successful spend/income —
+  see app/transaction-effects.tsx. Plain CSS keyframes rather than a library:
+  two short animations don't earn a dependency.
+*/
+@keyframes smart-alert-fall {
+  from {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0.85;
+  }
+}
+
+@keyframes smart-alert-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Opacity-only version of the fall, for prefers-reduced-motion below. */
+@keyframes smart-alert-fade {
+  from {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The flash is already opacity-only, so it needs no change. The falling
+     dollars' whole point is travel + rotation — swap to a plain fade in
+     place rather than trying to tone down motion a user opted out of. */
+  .smart-alert-dollar {
+    animation-name: smart-alert-fade !important;
+    top: 40% !important;
+  }
+}
