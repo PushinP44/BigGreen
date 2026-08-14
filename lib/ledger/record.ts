@@ -12,6 +12,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import type { Db } from '@/lib/db/client'
 import { balanceEntries, type EntryInput } from '@/lib/domain/fx'
+import { evaluateInflow } from '@/lib/domain/allocation'
 import {
   BASE_CURRENCY,
   parseAmountInput,
@@ -21,6 +22,7 @@ import {
   type Currency,
 } from '@/lib/domain/money'
 import { findSystemAccountId, rateTableFor } from '@/lib/read/accounts'
+import { loadAllocationSettings } from '@/lib/read/settings'
 
 export type Direction = 'spend' | 'income'
 
@@ -105,6 +107,14 @@ export async function recordSimpleTransaction(
 
   const userId = await currentUserId(db)
 
+  // Every income entry through this function has the system Income account
+  // (never `is_own`) as its counterparty, so it is an external inflow by
+  // construction — no separate "is this external" check needed (PLAN §8).
+  // Read before the transaction: settings change rarely, and this need not be
+  // transactionally consistent with the write that triggers it.
+  const allocationSettings =
+    input.direction === 'income' ? (await loadAllocationSettings(db)).settings : null
+
   // One transaction for the header and all its entries. The zero-sum trigger is
   // deferred to COMMIT, so splitting these across autocommitted statements
   // would trip it on the first entry — a transaction is only ever balanced once
@@ -134,10 +144,43 @@ export async function recordSimpleTransaction(
         ],
       )
     }
+
+    if (allocationSettings) {
+      const inflowEntry = balanced.entries.find((e) => e.accountId === input.accountId)
+      const suggestion = evaluateInflow(inflowEntry?.amountHkdMinor ?? 0n, allocationSettings)
+
+      if (suggestion) {
+        // ON CONFLICT DO NOTHING makes this idempotent by construction (the
+        // UNIQUE constraint on trigger_transaction_id), not by a check here —
+        // re-recording is impossible for a fresh transactionId, but the same
+        // discipline as the FX rate upsert either way.
+        await tx.query(
+          `INSERT INTO allocation_suggestions
+             (user_id, trigger_transaction_id, inflow_hkd_minor, suggested_hkd_minor, rule_version, state)
+           VALUES ($1, $2, $3, $4, $5, 'pending')
+           ON CONFLICT (trigger_transaction_id) DO NOTHING`,
+          [
+            userId,
+            transactionId,
+            suggestion.inflowHkdMinor.toString(),
+            suggestion.suggestedHkdMinor.toString(),
+            ALLOCATION_RULE_VERSION,
+          ],
+        )
+      }
+    }
   })
 
   return { transactionId, residualMinor: balanced.residualMinor }
 }
+
+/**
+ * Bumped when the rule's thresholds/behaviour change in a way worth
+ * distinguishing on old suggestions. Not read anywhere yet — recorded from
+ * day one so it is available if that ever matters (PLAN §8's `rule_version`
+ * column).
+ */
+const ALLOCATION_RULE_VERSION = '1'
 
 export interface RecordTransferInput {
   readonly fromAccountId: string
@@ -152,6 +195,13 @@ export interface RecordTransferInput {
   readonly toAmount?: string
   readonly description: string
   readonly occurredAt?: Date
+  /**
+   * Defaults to `posted`. `scheduled` is for a transfer that hasn't actually
+   * happened yet in the real world — e.g. accepting an allocation suggestion
+   * (PLAN §8) creates one you still have to go execute and confirm, rather
+   * than claiming money already moved when it hasn't.
+   */
+  readonly status?: 'posted' | 'scheduled'
 }
 
 /**
@@ -237,11 +287,13 @@ export async function recordTransfer(
   const userId = await currentUserId(db)
   const occurredAt = (input.occurredAt ?? new Date()).toISOString()
 
+  const status = input.status ?? 'posted'
+
   await db.transaction(async (tx) => {
     await tx.query(
       `INSERT INTO transactions (id, user_id, occurred_at, status, description, source)
-       VALUES ($1, $2, $3, 'posted', $4, 'manual')`,
-      [transactionId, userId, occurredAt, input.description || null],
+       VALUES ($1, $2, $3, $4::transaction_status, $5, 'manual')`,
+      [transactionId, userId, occurredAt, status, input.description || null],
     )
     for (const entry of balanced.entries) {
       await tx.query(

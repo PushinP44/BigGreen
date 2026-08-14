@@ -32,6 +32,7 @@ import {
 import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
 import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
 import { loadHoldings, type PricedHolding } from '@/lib/read/holdings'
+import { countPendingSuggestions } from '@/lib/read/allocations'
 import { EntryForm } from './entry-form'
 import { RefreshRates } from './refresh-rates'
 import { RefreshPrices } from './refresh-prices'
@@ -45,17 +46,27 @@ export default async function Home() {
   // read the clock themselves — that is what makes them testable (PLAN D4).
   const now = new Date()
 
-  const [snapshot, transactions, fxStatus, categories, rates, { settings }, heartbeats, holdings] =
-    await Promise.all([
-      loadLedgerSnapshot(db),
-      listRecentTransactions(db, 20),
-      listFxStatus(db),
-      listCategories(db),
-      rateTableFor(db),
-      loadSafetySettings(db),
-      listIngestHeartbeats(db),
-      loadHoldings(db, now),
-    ])
+  const [
+    snapshot,
+    transactions,
+    fxStatus,
+    categories,
+    rates,
+    { settings },
+    heartbeats,
+    holdings,
+    pendingAllocations,
+  ] = await Promise.all([
+    loadLedgerSnapshot(db),
+    listRecentTransactions(db, 20),
+    listFxStatus(db),
+    listCategories(db),
+    rateTableFor(db),
+    loadSafetySettings(db),
+    listIngestHeartbeats(db),
+    loadHoldings(db, now),
+    countPendingSuggestions(db),
+  ])
 
   const thisMonth = monthInterval(now)
 
@@ -120,6 +131,14 @@ export default async function Home() {
               className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs uppercase tracking-wide text-amber-600 transition hover:border-amber-500 dark:text-amber-400"
             >
               {pendingCount} to review
+            </Link>
+          ) : null}
+          {pendingAllocations > 0 ? (
+            <Link
+              href="/allocations"
+              className="rounded-md border border-(--color-green)/50 bg-(--color-green)/10 px-3 py-1.5 text-xs uppercase tracking-wide text-(--color-green) transition hover:border-(--color-green)"
+            >
+              {pendingAllocations} to allocate
             </Link>
           ) : null}
           <Link href="/accounts" className={chip}>
