@@ -445,6 +445,7 @@ export interface CategoryAverage {
   readonly categoryId: string | null
   readonly name: string
   readonly averageHkdMinor: bigint
+  /** How many of `periods` actually had ledger activity — the divisor. */
   readonly periodCount: number
 }
 
@@ -455,10 +456,16 @@ export interface CategoryAverage {
  * per-period totals instead of a second aggregation that could drift from
  * this one.
  *
- * Divides by every period, including ones where a category didn't appear —
- * mirrors `safety.ts`'s `burnRate()`, which divides by the whole window
- * rather than active days. A category spent once in six months must not look
- * like it recurs monthly.
+ * Divides by periods with *ledger* activity, not the nominal window length —
+ * a 6-month window on a 2-month-old ledger must not dilute the average with
+ * 4 months that predate any data at all, the same way `safety.ts`'s
+ * `burnRate()` falls back to a declared figure rather than measuring against
+ * a window it doesn't yet have enough history to fill (PLAN §5). This is
+ * "does the ledger have anything happening in this period", not "does this
+ * category" — a category still divides by a zero-spend-but-otherwise-active
+ * month, so a category spent once in six *lived* months still doesn't look
+ * like it recurs monthly; it only forgives months the ledger itself has
+ * nothing to say about.
  */
 export function averageSpendByCategory(
   accounts: readonly AccountSnapshot[],
@@ -467,6 +474,12 @@ export function averageSpendByCategory(
   periods: readonly Interval[],
 ): CategoryAverage[] {
   if (periods.length === 0) return []
+
+  const deltas = transactionDeltas(accounts, entries)
+  const activePeriods = periods.filter((period) =>
+    deltas.some((delta) => contains(period, delta.occurredAt)),
+  ).length
+  if (activePeriods === 0) return []
 
   const series = spendByCategorySeries(accounts, entries, categories, periods)
   const nameOf = new Map(categories.map((c) => [c.id, c.name]))
@@ -478,13 +491,13 @@ export function averageSpendByCategory(
     }
   }
 
-  const periodCount = BigInt(periods.length)
+  const divisor = BigInt(activePeriods)
   return [...sums.entries()]
     .map(([categoryId, sumHkdMinor]) => ({
       categoryId,
       name: categoryId === null ? 'Uncategorised' : (nameOf.get(categoryId) ?? 'Unknown'),
-      averageHkdMinor: divRoundHalfEven(sumHkdMinor, periodCount),
-      periodCount: periods.length,
+      averageHkdMinor: divRoundHalfEven(sumHkdMinor, divisor),
+      periodCount: activePeriods,
     }))
     .sort((a, b) =>
       b.averageHkdMinor > a.averageHkdMinor ? 1 : b.averageHkdMinor < a.averageHkdMinor ? -1 : 0,
