@@ -10,7 +10,7 @@
  */
 
 import { type Interval, contains } from './clock'
-import { BASE_CURRENCY, minorUnitsOf, type Currency, type Money } from './money'
+import { BASE_CURRENCY, divRoundHalfEven, minorUnitsOf, type Currency, type Money } from './money'
 
 /** One ledger entry, flattened with the bits of its transaction that matter. */
 export interface EntrySnapshot {
@@ -384,6 +384,74 @@ export function spendByCategory(
       hkdMinor,
     }))
     .sort((a, b) => (b.hkdMinor > a.hkdMinor ? 1 : b.hkdMinor < a.hkdMinor ? -1 : 0))
+}
+
+export interface CategoryPeriodTotals {
+  readonly period: Interval
+  readonly categories: readonly CategoryTotal[]
+}
+
+/** `spendByCategory` computed independently over each period, in period order. */
+export function spendByCategorySeries(
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  categories: readonly CategorySnapshot[],
+  periods: readonly Interval[],
+): CategoryPeriodTotals[] {
+  return periods.map((period) => ({
+    period,
+    categories: spendByCategory(accounts, entries, categories, period),
+  }))
+}
+
+export interface CategoryAverage {
+  readonly categoryId: string | null
+  readonly name: string
+  readonly averageHkdMinor: bigint
+  readonly periodCount: number
+}
+
+/**
+ * Average spend per category across `periods` — a thin merge+divide over
+ * `spendByCategorySeries` rather than a separate derivation, so a caller
+ * charting the same data over time (the dashboard) reuses the identical
+ * per-period totals instead of a second aggregation that could drift from
+ * this one.
+ *
+ * Divides by every period, including ones where a category didn't appear —
+ * mirrors `safety.ts`'s `burnRate()`, which divides by the whole window
+ * rather than active days. A category spent once in six months must not look
+ * like it recurs monthly.
+ */
+export function averageSpendByCategory(
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  categories: readonly CategorySnapshot[],
+  periods: readonly Interval[],
+): CategoryAverage[] {
+  if (periods.length === 0) return []
+
+  const series = spendByCategorySeries(accounts, entries, categories, periods)
+  const nameOf = new Map(categories.map((c) => [c.id, c.name]))
+  const sums = new Map<string | null, bigint>()
+
+  for (const { categories: periodTotals } of series) {
+    for (const total of periodTotals) {
+      sums.set(total.categoryId, (sums.get(total.categoryId) ?? 0n) + total.hkdMinor)
+    }
+  }
+
+  const periodCount = BigInt(periods.length)
+  return [...sums.entries()]
+    .map(([categoryId, sumHkdMinor]) => ({
+      categoryId,
+      name: categoryId === null ? 'Uncategorised' : (nameOf.get(categoryId) ?? 'Unknown'),
+      averageHkdMinor: divRoundHalfEven(sumHkdMinor, periodCount),
+      periodCount: periods.length,
+    }))
+    .sort((a, b) =>
+      b.averageHkdMinor > a.averageHkdMinor ? 1 : b.averageHkdMinor < a.averageHkdMinor ? -1 : 0,
+    )
 }
 
 /**

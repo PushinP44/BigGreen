@@ -15,6 +15,7 @@ import {
   startOfDay,
   startOfMonth,
   toLocalDate,
+  trailingMonthIntervals,
   zonedParts,
   zoneOffsetMs,
 } from '@/lib/domain/clock'
@@ -179,6 +180,46 @@ describe('horizon interval — the committed-outflow window (PLAN §5)', () => {
   it('rejects a negative or fractional horizon', () => {
     expect(() => horizonInterval(now, -1)).toThrow(ClockError)
     expect(() => horizonInterval(now, 2.5)).toThrow(ClockError)
+  })
+})
+
+describe('trailingMonthIntervals — smart_sort\'s multi-period average window', () => {
+  it('returns the requested count of complete months, oldest first', () => {
+    const now = new Date('2026-08-14T04:00:00Z') // mid-August
+    const months = trailingMonthIntervals(now, 3)
+    expect(months.map((m) => toLocalDate(m.start))).toEqual([
+      '2026-05-01',
+      '2026-06-01',
+      '2026-07-01',
+    ])
+    expect(months.map((m) => toLocalDate(m.endExclusive))).toEqual([
+      '2026-06-01',
+      '2026-07-01',
+      '2026-08-01',
+    ])
+  })
+
+  it('excludes the current, in-progress month', () => {
+    const now = new Date('2026-08-14T04:00:00Z')
+    const months = trailingMonthIntervals(now, 1)
+    expect(contains(months[0]!, now)).toBe(false)
+  })
+
+  it('rolls December of the prior year in correctly', () => {
+    const now = new Date('2026-01-15T04:00:00Z')
+    const months = trailingMonthIntervals(now, 1)
+    expect(toLocalDate(months[0]!.start)).toBe('2025-12-01')
+    expect(toLocalDate(months[0]!.endExclusive)).toBe('2026-01-01')
+  })
+
+  it('returns an empty array for a zero count, without throwing', () => {
+    expect(trailingMonthIntervals(new Date('2026-08-14T04:00:00Z'), 0)).toEqual([])
+  })
+
+  it('rejects a negative or fractional count', () => {
+    const now = new Date('2026-08-14T04:00:00Z')
+    expect(() => trailingMonthIntervals(now, -1)).toThrow(ClockError)
+    expect(() => trailingMonthIntervals(now, 2.5)).toThrow(ClockError)
   })
 })
 

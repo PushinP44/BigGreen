@@ -120,6 +120,9 @@ export default async function Home() {
           <Link href="/accounts" className={chip}>
             Accounts
           </Link>
+          <Link href="/categories" className={chip}>
+            Categories
+          </Link>
           <Link href="/settings" className={chip}>
             Settings
           </Link>
