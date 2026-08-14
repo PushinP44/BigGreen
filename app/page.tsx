@@ -30,15 +30,22 @@ import {
   type IngestHeartbeatSnapshot,
 } from '@/lib/domain/ingest-health'
 import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
+import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
+import { loadHoldings, type PricedHolding } from '@/lib/read/holdings'
 import { EntryForm } from './entry-form'
 import { RefreshRates } from './refresh-rates'
+import { RefreshPrices } from './refresh-prices'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
   const { db, email } = await requireSessionDb()
 
-  const [snapshot, transactions, fxStatus, categories, rates, { settings }, heartbeats] =
+  // Explicit `now`, threaded into every date decision. Domain functions never
+  // read the clock themselves — that is what makes them testable (PLAN D4).
+  const now = new Date()
+
+  const [snapshot, transactions, fxStatus, categories, rates, { settings }, heartbeats, holdings] =
     await Promise.all([
       loadLedgerSnapshot(db),
       listRecentTransactions(db, 20),
@@ -47,11 +54,9 @@ export default async function Home() {
       rateTableFor(db),
       loadSafetySettings(db),
       listIngestHeartbeats(db),
+      loadHoldings(db, now),
     ])
 
-  // Explicit `now`, threaded into every date decision. Domain functions never
-  // read the clock themselves — that is what makes them testable (PLAN D4).
-  const now = new Date()
   const thisMonth = monthInterval(now)
 
   const { accounts, entries } = snapshot
@@ -167,7 +172,8 @@ export default async function Home() {
         </div>
         <p className="text-xs text-(--color-muted)">
           Held separately on purpose — each pool is judged against the money that can actually pay
-          for something in it. Investments are not included until P4.
+          for something in it. Investments have their own section below and are deliberately
+          excluded here — a position is not spendable liquidity.
         </p>
       </section>
 
@@ -280,6 +286,38 @@ export default async function Home() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={sectionHeading}>Holdings</h2>
+        {holdings.length === 0 ? (
+          <p className="text-sm text-(--color-muted)">No positions yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
+                  <th className="py-2 pr-4 font-medium">Symbol</th>
+                  <th className="py-2 pr-4 text-right font-medium">Quantity</th>
+                  <th className="py-2 pr-4 text-right font-medium">Avg cost</th>
+                  <th className="py-2 pr-4 text-right font-medium">Last price</th>
+                  <th className="py-2 pr-4 text-right font-medium">Value</th>
+                  <th className="py-2 text-right font-medium">Unrealised P/L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {holdings.map((holding) => (
+                  <HoldingRow key={holding.instrumentId} holding={holding} />
+                ))}
+              </tbody>
+            </table>
+            <p className="pt-2 text-xs text-(--color-muted)">
+              P/L totals exclude <span className="whitespace-nowrap">COST UNKNOWN</span> positions
+              — a fabricated gain is worse than an honest blank.
+            </p>
+          </div>
+        )}
+        <RefreshPrices />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -476,6 +514,58 @@ function CardPanel({ card, currency }: { card: CardPosition; currency: Currency 
   )
 }
 
+/** Trims a fixed-point decimal string's trailing zeros for display: "10.0000000000" → "10". */
+function formatQuantity(quantity: string): string {
+  if (!quantity.includes('.')) return quantity
+  return quantity.replace(/0+$/, '').replace(/\.$/, '')
+}
+
+function HoldingRow({ holding }: { holding: PricedHolding }) {
+  const currency = holding.currency as Currency
+  const amount = (minor: bigint) => formatMoney(money(minor, currency))
+  const stale = holding.staleDays !== null && holding.staleDays > 7
+
+  return (
+    <tr className="border-b border-(--color-line)/60">
+      <td className="py-2 pr-4">
+        {holding.symbol}
+        {stale ? (
+          <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            {holding.staleDays}d old
+          </span>
+        ) : null}
+      </td>
+      <td className="tabular py-2 pr-4 text-right text-(--color-muted)">
+        {formatQuantity(holding.quantity)}
+      </td>
+      <td className="tabular py-2 pr-4 text-right">
+        {holding.avgCostMinor === null ? (
+          <span className="text-(--color-muted)">COST UNKNOWN</span>
+        ) : (
+          amount(holding.avgCostMinor)
+        )}
+      </td>
+      <td className="tabular py-2 pr-4 text-right">
+        {holding.priceMinor === null ? '—' : amount(holding.priceMinor)}
+      </td>
+      <td className="tabular py-2 pr-4 text-right">
+        {holding.marketValueMinor === null ? '—' : amount(holding.marketValueMinor)}
+      </td>
+      <td
+        className={`tabular py-2 text-right ${
+          holding.unrealizedPlMinor === null
+            ? ''
+            : holding.unrealizedPlMinor >= 0n
+              ? 'text-(--color-green)'
+              : 'text-red-600 dark:text-red-400'
+        }`}
+      >
+        {holding.unrealizedPlMinor === null ? '—' : amount(holding.unrealizedPlMinor)}
+      </td>
+    </tr>
+  )
+}
+
 function Term({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
@@ -539,6 +629,7 @@ const HEALTH_COLOR: Record<HeartbeatStatus, string> = {
 
 function sourceLabel(sourceKey: string): string {
   if (sourceKey === FX_SOURCE_KEY) return 'Exchange rates'
+  if (sourceKey === PRICES_SOURCE_KEY) return 'Live prices'
   return sourceKey
 }
 

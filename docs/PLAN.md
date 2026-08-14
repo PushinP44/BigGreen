@@ -106,7 +106,9 @@ added later writes a `pending` transaction you confirm; none write `posted` dire
   the P2 checkpoint. §7.2 is the standing recommendation to drop it.
 - Tax reporting; capital-gains lot accounting beyond simple average cost.
 - Bank linking via Plaid/aggregator (HK coverage is poor, and it is a paid dependency).
-- Real-time intraday quotes. Manual HK prices by choice; free FX by API (§7.3).
+- Real-time intraday quotes. End-of-day prices for US-listed holdings, from Finnhub's free
+  tier, decided later than this section — see §7.3. HK positions remain manual; free FX by
+  API either way.
 - Budget envelopes / zero-based budgeting. The safety rule replaces it for now.
 - Credit-card statement-cycle modelling. Deliberately excluded — see §5.
 - Sharing, multi-user households, mobile native app.
@@ -550,7 +552,16 @@ Two guardrails: ECB publishes on business days only, so a weekend transaction us
 published rate and records which date it came from. And **every rate is manually overridable** —
 if you moved THB at a rate materially different from the reference, yours is the truth.
 
-Equity prices remain manual (§13) with a staleness marker after 7 trading days.
+**Revised, post-P4.** Equity prices were manual by choice through rev 4 — no paid provider,
+no real-time quotes, because a single-user HK-heavy portfolio didn't justify the dependency.
+Owner's instruction when P4 landed: reuse the Finnhub integration this account already runs
+in a different project, `Livin'` (`backend/app/services/stocks_service.py`) — same free-tier
+`/quote` endpoint, same `FINANCE_API_KEY` env var name, same per-symbol failure isolation so
+one bad ticker cannot fail the batch. `lib/fx/finnhub.ts` mirrors `frankfurter.ts`'s own
+discipline: never overwrites a manual price for the same instrument and day, heartbeat-tracked
+via `ingest_sources`, no cron — a manual "Refresh prices" button, same as rates. This only
+prices what it recognises; a HK-listed symbol Finnhub doesn't know falls back to the manual
+price on record, so the staleness marker after 7 trading days still matters for that case.
 
 ### 7.4 The reconciler — one module, one job now
 
@@ -737,7 +748,7 @@ phases they touch:
 |---|---|---|
 | Which institutions? | HSBC, ZA Bank, Mox, Octopus, PayMe | §7.1; only HSBC has a usable email channel |
 | Domain for Cloudflare Email Routing? | No | Cloudflare Worker dropped |
-| Market data? | Free FX + manual equity prices | Frankfurter/ECB (§7.3); no paid provider |
+| Market data? | Free FX + Finnhub for US-listed equities, manual elsewhere | Frankfurter/ECB and Finnhub free tier (§7.3) — revised post-P4, no paid provider |
 | Credit-card modelling? | Keep it simple | No cycle fields; full balance committed (§5) |
 | Apple Pay usage? | Mostly Apple Pay | Tap capture kept as optional P5, gated on a spike |
 | Legacy cost basis? | Only for some | `avg_cost` nullable; `COST UNKNOWN` chip; P/L excludes |

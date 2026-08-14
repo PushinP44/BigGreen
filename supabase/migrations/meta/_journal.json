@@ -36,6 +36,13 @@
       "when": 1786527987284,
       "tag": "0004_account_last4",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786692107362,
+      "tag": "0005_instrument_target_weight",
+      "breakpoints": true
     }
   ]
 }

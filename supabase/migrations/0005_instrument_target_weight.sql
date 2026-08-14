@@ -1,0 +1,2 @@
+ALTER TABLE "instruments" ADD COLUMN "target_weight_bps" integer;--> statement-breakpoint
+ALTER TABLE "instruments" ADD CONSTRAINT "instruments_target_weight_range" CHECK ("instruments"."target_weight_bps" is null or ("instruments"."target_weight_bps" between 0 and 10000));

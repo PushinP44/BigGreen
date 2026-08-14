@@ -260,10 +260,23 @@ export const instruments = pgTable(
     kind: instrumentKind('kind').notNull(),
     currency: char('currency', { length: 3 }).notNull(),
     exchange: text('exchange'),
+    /**
+     * Basis points of new invest-money to route here when an allocation
+     * suggestion (PLAN §8) is accepted. Null means "not part of the split" —
+     * distinct from 0, which would mean "explicitly excluded". Nullable
+     * rather than a separate table: one weight per instrument is all §8's
+     * split needs, and a second table would need its own RLS + tenant-FK
+     * migration for no behavioural gain.
+     */
+    targetWeightBps: integer('target_weight_bps'),
     createdAt: createdAt(),
   },
   (t) => [
     check('instruments_currency_check', CURRENCY_CHECK),
+    check(
+      'instruments_target_weight_range',
+      sql`${t.targetWeightBps} is null or (${t.targetWeightBps} between 0 and 10000)`,
+    ),
     uniqueIndex('instruments_user_symbol_idx').on(t.userId, t.symbol),
   ],
 )
