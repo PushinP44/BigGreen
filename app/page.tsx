@@ -23,6 +23,13 @@ import {
 } from '@/lib/read/ledger'
 import { rateTableFor } from '@/lib/read/accounts'
 import { loadSafetySettings } from '@/lib/read/settings'
+import { listIngestHeartbeats } from '@/lib/read/ingest-sources'
+import {
+  heartbeatStatus,
+  type HeartbeatStatus,
+  type IngestHeartbeatSnapshot,
+} from '@/lib/domain/ingest-health'
+import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
 import { EntryForm } from './entry-form'
 import { RefreshRates } from './refresh-rates'
 
@@ -31,14 +38,16 @@ export const dynamic = 'force-dynamic'
 export default async function Home() {
   const { db, email } = await requireSessionDb()
 
-  const [snapshot, transactions, fxStatus, categories, rates, { settings }] = await Promise.all([
-    loadLedgerSnapshot(db),
-    listRecentTransactions(db, 20),
-    listFxStatus(db),
-    listCategories(db),
-    rateTableFor(db),
-    loadSafetySettings(db),
-  ])
+  const [snapshot, transactions, fxStatus, categories, rates, { settings }, heartbeats] =
+    await Promise.all([
+      loadLedgerSnapshot(db),
+      listRecentTransactions(db, 20),
+      listFxStatus(db),
+      listCategories(db),
+      rateTableFor(db),
+      loadSafetySettings(db),
+      listIngestHeartbeats(db),
+    ])
 
   // Explicit `now`, threaded into every date decision. Domain functions never
   // read the clock themselves — that is what makes them testable (PLAN D4).
@@ -334,6 +343,27 @@ export default async function Home() {
           )}
         </div>
         <RefreshRates />
+
+        {/*
+          Written since the FX job existed, never shown until now — a dead
+          feed and a quiet market look identical without this (PLAN §6.7).
+          Visible on load, not only after clicking Refresh rates.
+        */}
+        {heartbeats.length > 0 ? (
+          <div className="flex flex-col gap-1.5 border-t border-(--color-line) pt-3 text-xs text-(--color-muted)">
+            <span className="uppercase tracking-wide">Data health</span>
+            {heartbeats.map((heartbeat) => (
+              <div key={heartbeat.sourceKey} className="flex items-center gap-2">
+                <span
+                  className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${HEALTH_COLOR[heartbeatStatus(heartbeat, now)]}`}
+                  aria-hidden
+                />
+                <span>{sourceLabel(heartbeat.sourceKey)}</span>
+                <span>{healthSummary(heartbeat, now)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
     </main>
   )
@@ -495,4 +525,26 @@ function staleness(asOf: string, now: Date): string {
     (Date.parse(`${toLocalDate(now)}T00:00:00Z`) - Date.parse(`${asOf}T00:00:00Z`)) / 86_400_000,
   )
   return days > 7 ? ` · ${days}d old` : ''
+}
+
+const HEALTH_COLOR: Record<HeartbeatStatus, string> = {
+  ok: 'bg-(--color-green)',
+  never_run: 'bg-(--color-muted)',
+  stale: 'bg-amber-500',
+  failing: 'bg-red-500',
+}
+
+function sourceLabel(sourceKey: string): string {
+  if (sourceKey === FX_SOURCE_KEY) return 'Exchange rates'
+  return sourceKey
+}
+
+function healthSummary(heartbeat: IngestHeartbeatSnapshot, now: Date): string {
+  const status = heartbeatStatus(heartbeat, now)
+  if (status === 'failing') {
+    return `failing — ${heartbeat.consecutiveFailures}× in a row`
+  }
+  if (heartbeat.lastSuccessAt === null) return 'never run'
+  const summary = `last succeeded ${shortDate(heartbeat.lastSuccessAt)}`
+  return status === 'stale' ? `${summary} — overdue` : summary
 }

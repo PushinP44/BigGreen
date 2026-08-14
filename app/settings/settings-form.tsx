@@ -3,31 +3,12 @@
 import { useActionState } from 'react'
 import { saveSettings, type SettingsState } from './actions'
 import type { SettingsForm } from '@/lib/read/settings'
-import type { Currency } from '@/lib/domain/money'
 
 const initial: SettingsState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
 const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
-
-const POOLS: Array<{ currency: Currency; name: string; note: string }> = [
-  {
-    currency: 'HKD',
-    name: 'Hong Kong dollars',
-    note: 'HSBC, Mox, ZA, Octopus, PayMe, and the credit card. Where you live, so this is the pool that wants a floor.',
-  },
-  {
-    currency: 'USD',
-    name: 'US dollars',
-    note: 'ZA Bank. Set a floor only if this stops being savings and becomes money you spend.',
-  },
-  {
-    currency: 'THB',
-    name: 'Thai baht',
-    note: 'Krung Thai. Set a monthly figure if you spend meaningfully in Thailand; leave it at zero and the pool simply shows its balance.',
-  },
-]
 
 function toDecimal(minor: string | undefined, decimals = 2): string {
   if (!minor) return ''
@@ -76,56 +57,6 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
       <section className="flex flex-col gap-4">
         <div>
           <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
-            Floors, per pool
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
-            The floor is <strong>days of cover</strong>, not a fixed cushion: it is your daily
-            spending multiplied by the days you want to keep in reserve, so it moves on its own as
-            your life gets cheaper or more expensive. The monthly figure seeds that calculation —
-            once there are {form.minHistoryDays} days of history, the rule measures your real
-            spending instead and says so.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-6">
-          {POOLS.map((pool) => (
-            <div key={pool.currency} className="flex flex-col gap-2">
-              <div className="flex items-baseline gap-2">
-                <span className="font-medium">{pool.currency}</span>
-                <span className="text-sm text-(--color-muted)">{pool.name}</span>
-              </div>
-              <p className="max-w-2xl text-xs text-(--color-muted)">{pool.note}</p>
-
-              <div className="flex flex-wrap gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className={label}>Days of cover</span>
-                  <input
-                    name={`floorDays.${pool.currency}`}
-                    inputMode="numeric"
-                    defaultValue={form.floorDays[pool.currency] ?? 0}
-                    className={`tabular w-32 ${field}`}
-                  />
-                </label>
-
-                <label className="flex flex-col gap-1">
-                  <span className={label}>Typical spend / month ({pool.currency})</span>
-                  <input
-                    name={`monthlySpend.${pool.currency}`}
-                    inputMode="decimal"
-                    defaultValue={toDecimal(form.declaredMonthlySpendMinor[pool.currency])}
-                    placeholder="0.00"
-                    className={`tabular w-48 ${field}`}
-                  />
-                </label>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
             Credit cards
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
@@ -162,41 +93,6 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
               <strong>Full balance</strong> — for clearing the card monthly, when the balance
               really is next month&rsquo;s outflow. More conservative.
             </span>
-          </label>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
-          Advanced
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          <label className="flex flex-col gap-1">
-            <span className={label}>Committed horizon (days)</span>
-            <input
-              name="horizonDays"
-              inputMode="numeric"
-              defaultValue={form.horizonDays}
-              className={`tabular w-40 ${field}`}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Burn window (days)</span>
-            <input
-              name="burnWindowDays"
-              inputMode="numeric"
-              defaultValue={form.burnWindowDays}
-              className={`tabular w-40 ${field}`}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>History before measuring</span>
-            <input
-              name="minHistoryDays"
-              inputMode="numeric"
-              defaultValue={form.minHistoryDays}
-              className={`tabular w-40 ${field}`}
-            />
           </label>
         </div>
       </section>
