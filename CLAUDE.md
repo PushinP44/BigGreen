@@ -17,10 +17,12 @@ rule, the ingest architecture, and the phase order. Do not improvise around it.
    React component or a route handler body.
 4. **All date bucketing is `Asia/Hong_Kong`.** "Today", "this month", and the committed
    horizon go through `lib/domain/clock.ts`. Never bucket in UTC.
-5. **Manual entry is the product, not the fallback.** No CSV/statement/PDF import, no parsers,
-   no `inbox_items` — cut by owner instruction, "keep it clean and easy". Entry speed is a
-   first-class feature. Anything not typed by the user arrives as `status='pending'` and is
-   confirmed before it posts; nothing writes `posted` directly.
+5. **Manual entry is the primary path, not the only one.** No CSV/statement/PDF import — that
+   stays cut, owner instruction, "keep it clean and easy" (PLAN §1). Gmail ingest
+   (`lib/ingest/email.ts`, `lib/parsers/`) is real and shipped: a parsed email at or above
+   `autoPostConfidence` (default 0.9, tunable in Settings → Advanced) posts itself; below it,
+   it lands as `status='pending'` in `/review` for you to confirm. Entry speed is still a
+   first-class feature for the manual path, which remains how most things get in.
 6. **Idempotency is structural**, not defensive: `UNIQUE (user_id, source, external_id)` on
    transactions, `UNIQUE (trigger_transaction_id)` on allocation suggestions.
 7. **`holdings` is a derived read model**, never written directly. Positions come from
