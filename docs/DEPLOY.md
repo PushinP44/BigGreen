@@ -6,12 +6,17 @@ app — there is no Node/SSR runtime there — so the app itself runs on Vercel.
 ## 1. Vercel
 
 ```bash
-npx vercel link
-npx vercel --prod
+pnpm dlx vercel link
+pnpm dlx vercel --prod
 ```
 
-Or connect the GitHub repo at vercel.com. No build configuration is needed;
-Next.js is detected.
+Use `pnpm dlx`, not `npx` — this repo pins `devEngines.packageManager` to pnpm, and npm's own
+`npx` refuses to run anything here at all (`EBADDEVENGINES`) rather than silently using the
+wrong package manager.
+
+Or connect the GitHub repo at vercel.com, which sidesteps this entirely — Vercel detects pnpm
+from the lockfile and never invokes your local npm. No build configuration is needed; Next.js is
+detected.
 
 ### Environment variables
 

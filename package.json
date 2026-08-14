@@ -20,13 +20,7 @@
     "db:seed": "node scripts/seed.ts",
     "db:claim": "node scripts/claim.ts"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.21.0",
-      "onFail": "download"
-    }
-  },
+  "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=20"
   },
