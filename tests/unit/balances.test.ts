@@ -3,6 +3,8 @@ import fc from 'fast-check'
 import {
   accountBalances,
   averageSpendByCategory,
+  currencyPools,
+  currencyPoolsSeries,
   discretionarySpentInInterval,
   incomeInInterval,
   ledgerIsBalanced,
@@ -401,6 +403,48 @@ describe('spendByCategorySeries and averageSpendByCategory (smart_sort)', () => 
       ),
       { numRuns: 200 },
     )
+  })
+})
+
+describe('currencyPoolsSeries (feature-dashboard net-worth-over-time)', () => {
+  it('is inclusive of an entry exactly at the boundary', () => {
+    const at = txn([['bank', 500000n], ['income', -500000n]], { occurredAt: august.start })
+    const series = currencyPoolsSeries(accounts, at, [august.start])
+    const hkd = series[0]?.pools.find((p) => p.currency === 'HKD')
+    expect(hkd?.liquidMinor).toBe(500000n)
+  })
+
+  it('shows all-zero pools for a boundary before every entry', () => {
+    const later = txn([['bank', 500000n], ['income', -500000n]], { occurredAt: august.start })
+    const before = new Date(august.start.getTime() - 86_400_000)
+    const series = currencyPoolsSeries(accounts, later, [before])
+    const hkd = series[0]?.pools.find((p) => p.currency === 'HKD')
+    expect(hkd?.liquidMinor).toBe(0n)
+  })
+
+  it('replaying up to the final boundary matches calling currencyPools directly', () => {
+    const entries = [
+      ...txn([['bank', 500000n], ['income', -500000n]], { occurredAt: august.start }),
+      ...txn([['bank', -12345n], ['expenses', 12345n]], { occurredAt: AUG }),
+      ...txn([['thb', 22426n], ['income', -22426n]], {
+        occurredAt: AUG,
+        currency: 'THB',
+        amountMinor: 100050n,
+      }),
+    ]
+    const now = new Date('2026-08-20T00:00:00Z')
+
+    const series = currencyPoolsSeries(accounts, entries, [now])
+    const direct = currencyPools(accounts, accountBalances(accounts, entries))
+
+    expect(series[0]?.pools).toEqual(direct)
+  })
+
+  it('returns one row per boundary, in the order given', () => {
+    const b1 = new Date('2026-08-01T00:00:00Z')
+    const b2 = new Date('2026-08-15T00:00:00Z')
+    const series = currencyPoolsSeries(accounts, [], [b1, b2])
+    expect(series.map((s) => s.asOf)).toEqual([b1, b2])
   })
 })
 

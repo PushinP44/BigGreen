@@ -211,6 +211,43 @@ export function findPool(
   return pools.find((pool) => pool.currency === currency)
 }
 
+export interface CurrencyPoolsAtBoundary {
+  readonly asOf: Date
+  readonly pools: readonly CurrencyPool[]
+}
+
+/**
+ * `currencyPools()` replayed at each boundary — the dashboard's net-worth-
+ * over-time chart. Builds on `currencyPools()`, not `netWorth()`: `netWorth`
+ * is already blended to HKD, and charting that would reintroduce exactly the
+ * blending PLAN rev 4 rejected for the pool cards. One series per currency,
+ * matching the three `PoolCard`s already on the dashboard.
+ *
+ * Pure composition — for each boundary, replay only the entries that had
+ * happened by then and reuse the already-tested `accountBalances`/
+ * `currencyPools`, rather than a second aggregation that could drift from
+ * them. `lib/read/ledger.ts`'s own comment already argues for one in-memory
+ * pass over a dozen SQL aggregates that mirror the pure functions
+ * imperfectly; this is the same call at a slightly larger scale (boundaries
+ * × entries), not a new order of magnitude for a single-user ledger.
+ *
+ * Excludes investment value — a correct historical mark-to-market needs a
+ * price as of each past boundary, not just the latest one. Callers should
+ * label the chart accordingly, the same honesty convention as
+ * `netWorth.includesInvestments`.
+ */
+export function currencyPoolsSeries(
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  boundaries: readonly Date[],
+): CurrencyPoolsAtBoundary[] {
+  return boundaries.map((asOf) => {
+    const cutoff = asOf.getTime()
+    const upToBoundary = entries.filter((e) => e.occurredAt.getTime() <= cutoff)
+    return { asOf, pools: currencyPools(accounts, accountBalances(accounts, upToBoundary)) }
+  })
+}
+
 /**
  * Everything you own minus everything you owe.
  *
