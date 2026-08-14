@@ -9,8 +9,8 @@
  * PLAN §2, §6.
  */
 
-import { type Interval, contains } from './clock'
-import { BASE_CURRENCY, minorUnitsOf, type Currency, type Money } from './money'
+import { APP_TIMEZONE, type Interval, contains, zonedParts, zonedTimeToInstant } from './clock'
+import { BASE_CURRENCY, divRoundHalfEven, minorUnitsOf, type Currency, type Money } from './money'
 
 /** One ledger entry, flattened with the bits of its transaction that matter. */
 export interface EntrySnapshot {
@@ -384,6 +384,94 @@ export function spendByCategory(
       hkdMinor,
     }))
     .sort((a, b) => (b.hkdMinor > a.hkdMinor ? 1 : b.hkdMinor < a.hkdMinor ? -1 : 0))
+}
+
+export interface CategoryAverage {
+  readonly categoryId: string | null
+  readonly name: string
+  readonly avgMonthlyHkdMinor: bigint
+  /** How many months of the window actually had ledger activity — the divisor. */
+  readonly monthsOfData: number
+}
+
+/**
+ * Average monthly spend by category over a trailing window (smart_sort).
+ *
+ * Divides by the months that actually have ledger activity, not the window
+ * length itself: a 6-month window on a 2-month-old ledger must not dilute the
+ * average with 4 months that predate any data. Same reasoning as the
+ * declared-vs-measured burn rate in `safety.ts` (PLAN §5) — a number derived
+ * from real months beats one padded with months that were never lived.
+ *
+ * A category with zero spend in the window is omitted entirely, the same way
+ * `spendByCategory` omits it — never a fabricated zero.
+ */
+export function averageSpendByCategory(
+  accounts: readonly AccountSnapshot[],
+  entries: readonly EntrySnapshot[],
+  categories: readonly CategorySnapshot[],
+  opts: { readonly now: Date; readonly windowMonths?: number; readonly timeZone?: string },
+): CategoryAverage[] {
+  const windowMonths = opts.windowMonths ?? 6
+  if (!Number.isInteger(windowMonths) || windowMonths < 1) {
+    throw new RangeError(`windowMonths must be a positive integer, got ${windowMonths}`)
+  }
+  const timeZone = opts.timeZone ?? APP_TIMEZONE
+
+  const months = lastNMonths(opts.now, windowMonths, timeZone)
+  const deltas = transactionDeltas(accounts, entries)
+  const inWindow = (delta: TransactionDelta) =>
+    months.some((interval) => contains(interval, delta.occurredAt))
+
+  const monthsOfData = months.filter((interval) =>
+    deltas.some((delta) => contains(interval, delta.occurredAt)),
+  ).length
+  if (monthsOfData === 0) return []
+
+  const nameOf = new Map(categories.map((c) => [c.id, c.name]))
+  const totals = new Map<string | null, bigint>()
+
+  for (const delta of deltas) {
+    if (!inWindow(delta)) continue
+    if (delta.ownedDeltaHkdMinor >= 0n) continue
+    const key = delta.categoryId
+    totals.set(key, (totals.get(key) ?? 0n) + -delta.ownedDeltaHkdMinor)
+  }
+
+  const divisor = BigInt(monthsOfData)
+  return [...totals.entries()]
+    .map(([categoryId, hkdMinor]) => ({
+      categoryId,
+      name: categoryId === null ? 'Uncategorised' : (nameOf.get(categoryId) ?? 'Unknown'),
+      avgMonthlyHkdMinor: divRoundHalfEven(hkdMinor, divisor),
+      monthsOfData,
+    }))
+    .sort((a, b) =>
+      b.avgMonthlyHkdMinor > a.avgMonthlyHkdMinor
+        ? 1
+        : b.avgMonthlyHkdMinor < a.avgMonthlyHkdMinor
+          ? -1
+          : 0,
+    )
+}
+
+/** The last `n` calendar months ending at `instant`'s local month, oldest first. */
+function lastNMonths(instant: Date, n: number, timeZone: string): Interval[] {
+  const current = zonedParts(instant, timeZone)
+  const base = current.year * 12 + (current.month - 1)
+
+  const boundary = (totalMonths: number): Date => {
+    const year = Math.floor(totalMonths / 12)
+    const month = (totalMonths % 12) + 1
+    return zonedTimeToInstant({ year, month, day: 1, hour: 0, minute: 0, second: 0 }, timeZone)
+  }
+
+  const result: Interval[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    const totalMonths = base - i
+    result.push({ start: boundary(totalMonths), endExclusive: boundary(totalMonths + 1) })
+  }
+  return result
 }
 
 /**

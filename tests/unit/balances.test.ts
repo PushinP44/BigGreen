@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountBalances,
+  averageSpendByCategory,
   discretionarySpentInInterval,
   incomeInInterval,
   ledgerIsBalanced,
@@ -319,6 +320,89 @@ describe('spending', () => {
   it('excludes a transfer from the category chart entirely', () => {
     const entries = txn([['bank', -500000n], ['broker', 500000n]], { categoryId: 'cat-food' })
     expect(spendByCategory(accounts, entries, categories, august)).toEqual([])
+  })
+})
+
+describe('averageSpendByCategory', () => {
+  const JUL = new Date('2026-07-11T04:00:00Z')
+  const JAN = new Date('2026-01-11T04:00:00Z') // 7 months before AUG — outside a 6-month window
+
+  it('rejects a non-positive or non-integer window', () => {
+    expect(() => averageSpendByCategory(accounts, [], categories, { now: AUG, windowMonths: 0 })).toThrow(
+      RangeError,
+    )
+    expect(() =>
+      averageSpendByCategory(accounts, [], categories, { now: AUG, windowMonths: -1 }),
+    ).toThrow(RangeError)
+    expect(() =>
+      averageSpendByCategory(accounts, [], categories, { now: AUG, windowMonths: 1.5 }),
+    ).toThrow(RangeError)
+  })
+
+  it('returns nothing when the window has no ledger activity at all', () => {
+    expect(averageSpendByCategory(accounts, [], categories, { now: AUG })).toEqual([])
+  })
+
+  it('divides by months that actually have activity, not the window length', () => {
+    // Two months of real spend inside a default 6-month window that otherwise
+    // has four empty months — the average must not be diluted by those.
+    const entries = [
+      ...txn([['bank', -20000n], ['expenses', 20000n]], { categoryId: 'cat-food', occurredAt: AUG }),
+      ...txn([['bank', -10000n], ['expenses', 10000n]], { categoryId: 'cat-food', occurredAt: JUL }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, { now: AUG })
+    expect(totals).toEqual([
+      { categoryId: 'cat-food', name: 'Food', avgMonthlyHkdMinor: 15000n, monthsOfData: 2 },
+    ])
+  })
+
+  it('counts a month with only income toward the divisor, diluting categories with no spend that month', () => {
+    const entries = [
+      ...txn([['bank', -30000n], ['expenses', 30000n]], { categoryId: 'cat-food', occurredAt: AUG }),
+      ...txn([['bank', 500000n], ['income', -500000n]], { occurredAt: JUL }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, { now: AUG })
+    expect(totals).toEqual([
+      { categoryId: 'cat-food', name: 'Food', avgMonthlyHkdMinor: 15000n, monthsOfData: 2 },
+    ])
+  })
+
+  it('omits a category with no spend in the window rather than showing zero', () => {
+    const entries = txn([['bank', -20000n], ['expenses', 20000n]], {
+      categoryId: 'cat-food',
+      occurredAt: AUG,
+    })
+    const totals = averageSpendByCategory(accounts, entries, categories, { now: AUG })
+    expect(totals.find((row) => row.categoryId === 'cat-rent')).toBeUndefined()
+  })
+
+  it('excludes a transaction older than the window from both the total and the divisor', () => {
+    const entries = [
+      ...txn([['bank', -20000n], ['expenses', 20000n]], { categoryId: 'cat-food', occurredAt: AUG }),
+      ...txn([['bank', -99999n], ['expenses', 99999n]], { categoryId: 'cat-food', occurredAt: JAN }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, { now: AUG, windowMonths: 6 })
+    expect(totals).toEqual([
+      { categoryId: 'cat-food', name: 'Food', avgMonthlyHkdMinor: 20000n, monthsOfData: 1 },
+    ])
+  })
+
+  it('labels an uncategorised transaction and sorts by average descending', () => {
+    const entries = [
+      ...txn([['bank', -20000n], ['expenses', 20000n]], { categoryId: 'cat-food', occurredAt: AUG }),
+      ...txn([['bank', -800000n], ['expenses', 800000n]], { categoryId: 'cat-rent', occurredAt: AUG }),
+      ...txn([['bank', -300n], ['expenses', 300n]], { occurredAt: AUG }),
+    ]
+
+    const totals = averageSpendByCategory(accounts, entries, categories, { now: AUG, windowMonths: 1 })
+    expect(totals).toEqual([
+      { categoryId: 'cat-rent', name: 'Rent', avgMonthlyHkdMinor: 800000n, monthsOfData: 1 },
+      { categoryId: 'cat-food', name: 'Food', avgMonthlyHkdMinor: 20000n, monthsOfData: 1 },
+      { categoryId: null, name: 'Uncategorised', avgMonthlyHkdMinor: 300n, monthsOfData: 1 },
+    ])
   })
 })
 
