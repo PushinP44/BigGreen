@@ -2,6 +2,7 @@
 
 import { useActionState, useCallback, useMemo, useState } from 'react'
 import { addTransaction, type ActionState } from './actions'
+import { TransactionEffects, type EffectTrigger } from './transaction-effects'
 import {
   evaluatePayment,
   termsFromJson,
@@ -63,6 +64,22 @@ export function EntryForm({
   const [amount, setAmount] = useState('')
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
   const [categoryId, setCategoryId] = useState('')
+  const [effectTrigger, setEffectTrigger] = useState<EffectTrigger | null>(null)
+  const [handledState, setHandledState] = useState<ActionState>(initial)
+
+  // Adjust state during render, not in an effect (react-hooks/set-state-in-
+  // effect) — React's own sanctioned pattern for "do something once when a
+  // value changes". `useActionState` hands back a fresh `state` object on
+  // every completed submission (never the stable `initial` one), so tracking
+  // the last-handled object is what makes this fire exactly once per
+  // successful save rather than on every render.
+  if (state !== handledState) {
+    setHandledState(state)
+    if (state.ok && state.direction) {
+      const direction = state.direction
+      setEffectTrigger((previous) => ({ direction, token: (previous?.token ?? 0) + 1 }))
+    }
+  }
 
   const currencyOf = useCallback(
     (id: string) => accounts.find((a) => a.id === id)?.currency,
@@ -264,6 +281,8 @@ export function EntryForm({
         </p>
       ) : null}
       {state.ok ? <p className="text-sm text-(--color-green)">{state.ok}</p> : null}
+
+      <TransactionEffects trigger={effectTrigger} />
     </form>
   )
 }

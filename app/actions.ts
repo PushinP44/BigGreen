@@ -3,13 +3,21 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
-import { recordSimpleTransaction, recordTransfer } from '@/lib/ledger/record'
+import { recordSimpleTransaction, recordTransfer, type Direction } from '@/lib/ledger/record'
 import { syncRates } from '@/lib/fx/frankfurter'
 import { syncPrices } from '@/lib/fx/finnhub'
 
 export interface ActionState {
   readonly error?: string
   readonly ok?: string
+  /**
+   * Set only on a successful spend/income (never on a transfer, which is
+   * never external money in or out — PLAN D1). Sourced from what the server
+   * actually recorded rather than the form's own `kind` state, so switching
+   * the segmented control after submitting but before the response lands
+   * can't fire the wrong money-in/money-out effect (smart_alert).
+   */
+  readonly direction?: Direction
 }
 
 const optionalUuid = z
@@ -105,6 +113,7 @@ export async function addTransaction(
         result.residualMinor === 0n
           ? 'Recorded.'
           : `Recorded, with ${result.residualMinor} minor units of FX rounding.`,
+      direction: parsed.data.direction,
     }
   } catch (error) {
     return toState(error)
