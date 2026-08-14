@@ -27,9 +27,10 @@ Currencies in active use: **HKD (accounting base), USD, THB** — held in three 
 >
 > **Rev 3 cut the import pipeline.** Owner's instruction, 2026-08-11: *"no need to create csv or
 > statement reader since it is for personal use; keep it clean and easy."* Statement/CSV/PDF
-> import is out (§1), which removes the parser registry, the golden-fixture apparatus, and most
-> of what was P4. Email parsing is deferred pending the same reasoning. Manual entry is now the
-> primary input path and is budgeted as a first-class feature, not a fallback.
+> import is out (§1) and stays out, which removes `inbox_items` and the golden-fixture apparatus
+> — most, but (see §7.0's revision note) not all, of what was P4. Manual entry is the primary
+> input path and is budgeted as a first-class feature, not a fallback — Gmail ingest, added
+> later, is a second one, not a replacement.
 >
 > **Rev 2 changed the ingest architecture.** Rev 1 assumed email was the reliable capture
 > channel and built a Cloudflare Email Worker around it. Given the actual institution mix
@@ -75,11 +76,15 @@ budget is the first thing to go wrong. Timestamps are stored `timestamptz`; ever
 decision goes through `lib/domain/clock.ts`, which takes `now` and a timezone as explicit
 arguments. Domain functions never call `new Date()` — that is what makes them testable.
 
-**D5 — Manual entry is the product, not the fallback.** (Rev 3, replacing rev 2's three-channel
-capture decision.) You enter amounts yourself. That makes entry *speed* a primary feature —
+**D5 — Manual entry is the primary path, not the only one.** (Rev 3, replacing rev 2's
+three-channel capture decision; revised again when Gmail ingest shipped — see §7.0.) You enter
+amounts yourself, and that stays entry *speed*'s whole reason for being a primary feature —
 duplicate-then-edit, sensible defaults, a currency picker that remembers, and a keyboard path
-that never touches a mouse. Every hour not spent on parsers goes here. Any automatic channel
-added later writes a `pending` transaction you confirm; none write `posted` directly.
+that never touches a mouse. The one automatic channel that did get built (Gmail ingest) still
+respects the spirit of this decision: below `autoPostConfidence` it writes a `pending`
+transaction you confirm, exactly as this rule originally said every automatic channel would.
+Above it, it posts itself — a deliberate, later exception to "none write `posted` directly",
+not an oversight; see §7.0.
 
 ---
 
@@ -96,14 +101,16 @@ added later writes a `pending` transaction you confirm; none write `posted` dire
 - Safe/unsafe verdict before you commit to a payment.
 - Inflow allocation rule (the "2000 HKD → 30%" notice).
 - **Fast manual entry as the primary input path**, with duplicate-then-edit (§4).
+- **Gmail ingest** (email alerts → parser registry → confidence-scored auto-post or
+  `/review`). Listed out of scope through rev 3; shipped since — see §7.0's revision note.
 
 **Explicitly out of scope (v1)** — written down so they don't creep in:
 
-- **CSV / statement / PDF import, and the parser registry that served it.** Cut in rev 3 by
-  owner instruction. This also removes `inbox_items`, per-source parser modules, and the
-  golden-fixture requirement — roughly the whole of the old P4. Manual entry replaces it.
-- **Email receipt parsing (Gmail / Apps Script).** Deferred by the same reasoning; decide at
-  the P2 checkpoint. §7.2 is the standing recommendation to drop it.
+- **CSV / statement / PDF import.** Cut in rev 3 by owner instruction and still cut — this one
+  did not come back. `inbox_items` and the golden-fixture requirement went with it; the parser
+  *registry* survived, repurposed for Gmail ingest instead (§7.0) rather than removed outright,
+  so "no parsers" in earlier revisions of this document was only ever true of the import path.
+  Manual entry replaces statement import specifically, not every non-manual path.
 - Tax reporting; capital-gains lot accounting beyond simple average cost.
 - Bank linking via Plaid/aggregator (HK coverage is poor, and it is a paid dependency).
 - Real-time intraday quotes. End-of-day prices for US-listed holdings, from Finnhub's free
@@ -134,9 +141,11 @@ added later writes a `pending` transaction you confirm; none write `posted` dire
 ```
 
 Rev 3 removed the `inbox_items` → parser → `draft_transactions` staging chain along with the
-import pipeline. **D3 survives in reduced form:** anything not typed by you lands as a
-`pending` transaction requiring confirmation, never as `posted`. There is simply no longer a
-parser to defend against, so there is no longer a staging table to defend with.
+CSV/statement/PDF import pipeline — that part is unchanged and stays cut. **D3 survives in
+reduced form, revised once more when Gmail ingest shipped** (§7.0): anything not typed by you
+and below `autoPostConfidence` lands as a `pending` transaction requiring confirmation; at or
+above it, it posts itself. There is no `inbox_items` staging table either way — a posted email
+alert is a normal `transactions` row with `source='email'`, not a second write path.
 
 **Why all money logic is server-side.** Every rule (safety, allocation, FX, balances) is a
 pure TypeScript module under `lib/domain/` with zero I/O, called from route handlers and
@@ -494,7 +503,17 @@ one-user tool that trade is not close.
 What that buys back: no parser modules, no fixtures, no `inbox_items`, no confidence
 thresholds, no per-institution breakage when a bank changes a template. §10 shrinks with it.
 
-### 7.1 The institution reality
+**Revised, post rev 3.** The reasoning above held — it is why HSBC's alert runs on a generic
+heuristic parser rather than five per-institution ones, and why the other four institutions
+still route through manual entry (§7.1 is unchanged). But the owner reopened this specifically
+for the one institution that does send usable email, on the logic that one working channel is
+still worth having even though it can never be the whole answer. Built: `lib/ingest/email.ts`
+(Apps Script poller → HMAC-signed endpoint) and `lib/parsers/` (generic parser + a registry
+sized for more later, though none exist yet — see §13's "a redacted HSBC alert" row). Confidence
+scoring and a review queue did get built, contrary to "what that buys back" above — this is the
+one place their cost was judged worth paying. **Every "cut"/"deferred" reference to email
+ingest elsewhere in this document predates this reversal** and should be read as superseded by
+this note, not as the current state.
 
 | Institution | Per-transaction email? | Apple Pay | v1 channel |
 |---|---|---|---|
@@ -704,10 +723,13 @@ Personal finance data, so:
   `NEXT_PUBLIC_` var.
 - **Public signup disabled.** One user, seeded. An open signup endpoint on a single-user finance
   app is pure downside.
-- **Rev 3 shrank the attack surface considerably.** With import and email parsing cut, there is
-  no untrusted-content path into the ledger at all — everything is typed by an authenticated
-  user. The remaining external inputs are the FX feed (read-only, a known host, values
-  range-checked) and, if P5 ships, the Shortcuts endpoint.
+- **Rev 3 shrank the attack surface considerably; §7.0's revision reopened one path
+  deliberately.** With CSV/statement import cut, that route stays closed. Gmail ingest
+  (`/api/ingest/email`) is a real untrusted-content path into the ledger — mitigated, not
+  absent: HMAC-signed requests, a confidence bar below which a parse waits in `/review` rather
+  than posting, and idempotency on the Gmail message id. The remaining external inputs are the
+  FX feed (read-only, a known host, values range-checked) and, if P5 ships, the Shortcuts
+  endpoint.
 - Shortcuts endpoint (P5 only): rotatable bearer token, constant-time compare, timestamp window
   to block replay, rate-limited. Treat the token as compromised-by-default — it lives in a
   Shortcut on a phone. Rotation must be a one-minute operation or it will never happen.
@@ -773,7 +795,13 @@ phases they touch:
    before P3; the engine supports it, the default doesn't use it.
 4. **What do you actually hold?** Sizes P4 and determines whether manual price entry is a
    two-minute monthly chore or a real burden.
-5. **Email parsing — keep or cut?** Standing recommendation: cut (§7.0).
+5. **Email parsing — keep or cut?** Answered: kept, and shipped (§7.0's revision note) — this
+   row is no longer open. What's still open underneath it: a **Chrome extension**, to capture
+   receipts/alerts client-side instead of via the Gmail/Apps Script poller. Explicitly
+   secondary — noted per owner instruction, not planned for build while there is one user and
+   the existing Apps Script → HMAC-signed-endpoint path already works. Revisit if this ever
+   needs to run for someone who isn't the owner, since a browser extension is the kind of thing
+   that starts mattering once "single user" stops being true.
 
 ---
 
