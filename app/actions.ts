@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
 import { recordSimpleTransaction, recordTransfer } from '@/lib/ledger/record'
 import { syncRates } from '@/lib/fx/frankfurter'
+import { syncPrices } from '@/lib/fx/finnhub'
 
 export interface ActionState {
   readonly error?: string
@@ -126,6 +127,27 @@ export async function refreshRates(_previous: ActionState): Promise<ActionState>
         result.written === 0
           ? `Already up to date (${result.asOf ?? 'no date'}).`
           : `Updated ${result.written} rate(s) as of ${result.asOf}.`,
+    }
+  } catch (error) {
+    return toState(error)
+  }
+}
+
+export async function refreshPrices(_previous: ActionState): Promise<ActionState> {
+  try {
+    const { db } = await requireSessionDb()
+    const result = await syncPrices(db, new Date())
+    revalidatePath('/')
+
+    if (result.failed.length > 0 && result.written === 0 && result.unchanged === 0) {
+      return { error: `Could not price any position: ${result.failed[0]?.reason}` }
+    }
+    const skipped = result.failed.length > 0 ? `, ${result.failed.length} skipped` : ''
+    return {
+      ok:
+        result.written === 0
+          ? `Already up to date (${result.asOf}${skipped}).`
+          : `Updated ${result.written} price(s) as of ${result.asOf}${skipped}.`,
     }
   } catch (error) {
     return toState(error)
