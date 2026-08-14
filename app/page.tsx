@@ -3,15 +3,17 @@ import { requireSessionDb } from '@/lib/db/session'
 import {
   accountBalances,
   currencyPools,
+  currencyPoolsSeries,
   discretionarySpentInInterval,
   hkd,
   incomeInInterval,
   ledgerIsBalanced,
+  minorFactor,
   spendByCategory,
   spentInInterval,
   type CurrencyPool,
 } from '@/lib/domain/balances'
-import { APP_TIMEZONE, monthInterval, toLocalDate, zonedParts } from '@/lib/domain/clock'
+import { APP_TIMEZONE, addDays, monthInterval, toLocalDate, zonedParts } from '@/lib/domain/clock'
 import { formatMoney, money, type Currency } from '@/lib/domain/money'
 import { safetyTerms, termsToJson, type PoolTerms } from '@/lib/domain/safety'
 import type { CardPosition } from '@/lib/domain/credit'
@@ -33,9 +35,12 @@ import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
 import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
 import { loadHoldings, type PricedHolding } from '@/lib/read/holdings'
 import { countPendingSuggestions } from '@/lib/read/allocations'
+import { NetWorthChart, type NetWorthPoint } from './charts/net-worth-chart'
 import { EntryForm } from './entry-form'
 import { RefreshRates } from './refresh-rates'
 import { RefreshPrices } from './refresh-prices'
+
+const NET_WORTH_WEEKS = 26
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +78,26 @@ export default async function Home() {
   const { accounts, entries } = snapshot
   const balances = accountBalances(accounts, entries)
   const pools = currencyPools(accounts, balances)
+
+  // Oldest first, so the chart reads left-to-right chronologically.
+  const netWorthBoundaries = Array.from({ length: NET_WORTH_WEEKS }, (_, i) =>
+    addDays(now, -7 * (NET_WORTH_WEEKS - 1 - i)),
+  )
+  const netWorthData: NetWorthPoint[] = currencyPoolsSeries(accounts, entries, netWorthBoundaries).map(
+    (point) => {
+      const byCurrency = new Map(point.pools.map((p) => [p.currency, p]))
+      const majorUnits = (currency: Currency) => {
+        const total = byCurrency.get(currency)?.totalMinor ?? 0n
+        return Number(total) / Number(minorFactor(currency))
+      }
+      return {
+        label: shortDate(point.asOf),
+        HKD: majorUnits('HKD'),
+        USD: majorUnits('USD'),
+        THB: majorUnits('THB'),
+      }
+    },
+  )
   const spent = spentInInterval(accounts, entries, thisMonth)
   const income = incomeInInterval(accounts, entries, thisMonth)
   const discretionary = discretionarySpentInInterval(
@@ -196,6 +221,16 @@ export default async function Home() {
           Held separately on purpose — each pool is judged against the money that can actually pay
           for something in it. Investments have their own section below and are deliberately
           excluded here — a position is not spendable liquidity.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={sectionHeading}>Net worth over time · per pool</h2>
+        <NetWorthChart data={netWorthData} />
+        <p className="text-xs text-(--color-muted)">
+          26 weeks, at cost — holdings count at what you paid, not today&rsquo;s market price. A
+          true mark-to-market history needs a price as of every past week, not just the latest
+          one; that&rsquo;s a bigger lift than this chart is.
         </p>
       </section>
 
