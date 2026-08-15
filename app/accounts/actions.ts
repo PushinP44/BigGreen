@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
-import { CURRENCIES } from '@/lib/domain/money'
+import { CURRENCIES, parseAmountInput, type Currency } from '@/lib/domain/money'
 
 export interface AccountState {
   readonly error?: string
@@ -20,12 +20,21 @@ export interface AccountState {
  */
 const KINDS = ['cash', 'bank', 'credit_card', 'ewallet', 'brokerage'] as const
 
+/** Front four digits of an account number, or back four of a card — whichever the account's emailed alerts show. See `resolveAccount` in lib/ingest/email.ts. */
+const DIGITS4 = /^\d{4}$/
+
 const schema = z.object({
   name: z.string().trim().min(1, 'give the account a name').max(60),
   kind: z.enum(KINDS),
   currency: z.enum(Object.keys(CURRENCIES) as [string, ...string[]]),
   isLiquid: z.boolean(),
   institution: z.string().trim().max(40).optional(),
+  openingBalance: z.string().trim().optional(),
+  accountDigits: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || DIGITS4.test(value), 'account digits must be exactly four numbers'),
 })
 
 export async function createAccount(
@@ -40,6 +49,8 @@ export async function createAccount(
     // and the database CHECK would reject it anyway.
     isLiquid: formData.get('kind') !== 'credit_card' && formData.get('isLiquid') === 'on',
     institution: formData.get('institution') ?? undefined,
+    openingBalance: formData.get('openingBalance') || undefined,
+    accountDigits: formData.get('accountDigits') || undefined,
   })
 
   if (!parsed.success) {
@@ -49,9 +60,14 @@ export async function createAccount(
   try {
     const { db, userId } = await requireSessionDb()
 
+    const openingBalanceMinor = parsed.data.openingBalance
+      ? parseAmountInput(parsed.data.openingBalance, parsed.data.currency as Currency).amountMinor
+      : 0n
+
     await db.query(
-      `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, institution)
-       VALUES ($1, $2, $3::account_kind, $4, $5, true, $6)`,
+      `INSERT INTO accounts
+         (user_id, name, kind, currency, is_liquid, is_own, institution, opening_balance_minor, account_last4)
+       VALUES ($1, $2, $3::account_kind, $4, $5, true, $6, $7, $8)`,
       [
         userId,
         parsed.data.name,
@@ -59,6 +75,8 @@ export async function createAccount(
         parsed.data.currency,
         parsed.data.isLiquid,
         parsed.data.institution || null,
+        openingBalanceMinor.toString(),
+        parsed.data.accountDigits || null,
       ],
     )
 
@@ -99,5 +117,62 @@ export async function archiveAccount(
     return { ok: 'Archived.' }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'could not archive that' }
+  }
+}
+
+/**
+ * Set an account's opening balance (what it held before you started tracking
+ * it here) and the digits from its emailed alerts, for accounts that already
+ * exist. `createAccount` covers both at creation time; this is the only way
+ * to correct them afterwards, since neither is otherwise editable.
+ *
+ * One form covers every account (mirrors `saveCard` in
+ * settings/advanced/actions.ts), each field pre-filled with its current
+ * value — so an unedited row is a no-op write, and only a row the person
+ * actually cleared resets to blank/zero. All rows commit in one transaction:
+ * a bad value partway through must not leave earlier rows saved and later
+ * ones not.
+ */
+export async function updateAccountDetails(
+  _previous: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const ids = formData.getAll('accountIds').map(String)
+  if (ids.length === 0) return { error: 'no accounts to save' }
+
+  try {
+    const { db } = await requireSessionDb()
+
+    await db.transaction(async (tx) => {
+      for (const id of ids) {
+        const existing = await tx.query<{ currency: string }>(
+          'SELECT currency FROM accounts WHERE id = $1 AND is_own AND archived_at IS NULL',
+          [id],
+        )
+        const row = existing.rows[0]
+        if (!row) throw new Error('account not found')
+        const currency = row.currency.trim() as Currency
+
+        const balanceRaw = String(formData.get(`openingBalance.${id}`) ?? '').trim()
+        const openingBalanceMinor =
+          balanceRaw === '' ? 0n : parseAmountInput(balanceRaw, currency).amountMinor
+
+        const digitsRaw = String(formData.get(`accountDigits.${id}`) ?? '').trim()
+        if (digitsRaw !== '' && !DIGITS4.test(digitsRaw)) {
+          throw new Error('account digits must be exactly four numbers')
+        }
+
+        await tx.query(
+          `UPDATE accounts SET opening_balance_minor = $2, account_last4 = $3 WHERE id = $1`,
+          [id, openingBalanceMinor.toString(), digitsRaw === '' ? null : digitsRaw],
+        )
+      }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/accounts')
+    return { ok: 'Saved.' }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'could not save those details' }
   }
 }

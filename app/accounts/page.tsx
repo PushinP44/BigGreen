@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireSessionDb } from '@/lib/db/session'
 import { formatMoney, isCurrency, money, type Currency } from '@/lib/domain/money'
+import { AccountDetailsForm } from './account-details-form'
 import { AccountForm, ArchiveButton } from './account-form'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,8 @@ interface AccountRow {
   currency: string
   is_liquid: boolean
   institution: string | null
+  account_last4: string | null
+  opening_balance_minor: string
   balance_minor: string
 }
 
@@ -21,6 +24,7 @@ export default async function AccountsPage() {
   const result = await db.query<AccountRow>(`
     SELECT
       a.id, a.name, a.kind::text AS kind, a.currency, a.is_liquid, a.institution,
+      a.account_last4, a.opening_balance_minor::text AS opening_balance_minor,
       (a.opening_balance_minor
         + COALESCE(SUM(e.amount_minor) FILTER (WHERE e.currency = a.currency), 0))::text
         AS balance_minor
@@ -86,6 +90,24 @@ export default async function AccountsPage() {
           })}
         </ul>
       )}
+
+      {accounts.length > 0 ? (
+        <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+            Account details
+          </h2>
+          <AccountDetailsForm
+            accounts={accounts.map((account) => ({
+              id: account.id,
+              name: account.name,
+              kind: account.kind,
+              currency: account.currency,
+              accountLast4: account.account_last4,
+              openingBalanceMinor: account.opening_balance_minor,
+            }))}
+          />
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">

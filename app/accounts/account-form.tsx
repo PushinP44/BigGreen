@@ -82,6 +82,31 @@ export function AccountForm() {
         ) : null}
       </div>
 
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex flex-col gap-1">
+          <span className={label}>Opening balance (optional)</span>
+          <input
+            name="openingBalance"
+            inputMode="decimal"
+            placeholder="0.00"
+            className={`tabular w-36 ${field}`}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className={label}>
+            {kind === 'credit_card' ? 'Card ends in (optional)' : 'Account starts with (optional)'}
+          </span>
+          <input
+            name="accountDigits"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder={kind === 'credit_card' ? '4321' : '1234'}
+            className={`tabular w-28 ${field}`}
+          />
+        </label>
+      </div>
+
       <div className="flex items-center gap-4">
         <button
           type="submit"
@@ -101,7 +126,8 @@ export function AccountForm() {
       <p className="text-xs text-(--color-muted)">
         The institution is what matches emailed alerts to this account — <code>hsbc</code>,{' '}
         <code>za</code>, <code>mox</code>, <code>ktb</code>. Leave it blank if the account never
-        emails you.
+        emails you. If it does, the digits narrow an alert down to this account when the
+        institution has more than one — both fields can also be set later from the list above.
       </p>
     </form>
   )
