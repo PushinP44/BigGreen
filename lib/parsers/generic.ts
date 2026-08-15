@@ -83,9 +83,16 @@ function findAmounts(text: string): AmountHit[] {
 
 const LAST4 = /(?:card|a\/c|account)[^\ndigits]{0,40}?(?:ending|ending in|no\.?|\*+|x+)\s*(\d{4})\b/i
 const LAST4_MASKED = /(?:\*{2,}|x{2,}|•{2,})\s*(\d{4})\b/i
+/**
+ * Some account alerts show the front of the number rather than the end
+ * (`1234******`, `A/C 1234-XXXX-XXXX`) — the mirror image of LAST4_MASKED.
+ * Tried last: a labelled or trailing-mask match is more certain than a bare
+ * leading run of digits, so those take priority whenever they're present.
+ */
+const LEAD4_MASKED = /\b(\d{4})[-\s]?(?:\*{2,}|x{2,}|•{2,})/i
 
 function findLast4(text: string): string | null {
-  return LAST4.exec(text)?.[1] ?? LAST4_MASKED.exec(text)?.[1] ?? null
+  return LAST4.exec(text)?.[1] ?? LAST4_MASKED.exec(text)?.[1] ?? LEAD4_MASKED.exec(text)?.[1] ?? null
 }
 
 /**

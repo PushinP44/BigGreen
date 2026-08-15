@@ -149,6 +149,19 @@ describe('merchant and card', () => {
       genericParser.parse(email({ body: 'HKD 100.00 on ****5678' }))?.fields.accountLast4,
     ).toBe('5678')
   })
+
+  it('reads the leading digits of an account number shown front-masked', () => {
+    expect(
+      genericParser.parse(email({ body: 'HKD 100.00 from A/C 1234******' }))?.fields.accountLast4,
+    ).toBe('1234')
+  })
+
+  it('prefers a labelled card ending over a leading-digit mask elsewhere in the message', () => {
+    const result = genericParser.parse(
+      email({ body: 'HKD 100.00 charged to card ending 4321. Linked A/C 9876******.' }),
+    )
+    expect(result?.fields.accountLast4).toBe('4321')
+  })
 })
 
 describe('registry', () => {
