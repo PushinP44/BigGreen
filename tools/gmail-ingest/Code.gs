@@ -119,6 +119,15 @@ function pollOnce() {
  * hand), run `pnpm db:reconcile-backfill` on the server side, so today's
  * account balances are not pulled down by spending that already happened
  * before you set them.
+ *
+ * Two months of alerts can be more than one execution can get through —
+ * Apps Script kills a run outright at ~6 minutes, with no way for the
+ * script itself to catch or clean up after that kill. Rather than risk
+ * hitting it mid-send, this checks its own running time and stops itself
+ * cleanly with time to spare, having labelled whatever it did finish. Run
+ * it again — and again — until the log says there is nothing left; each
+ * run's search excludes what earlier ones already labelled, so this is
+ * naturally safe to repeat.
  */
 function backfillTwoMonths() {
   var props = PropertiesService.getScriptProperties()
@@ -138,8 +147,18 @@ function backfillTwoMonths() {
   var threads = GmailApp.search(query, 0, 200)
   var sent = 0
   var failed = 0
+  var startedAt = Date.now()
+  // Apps Script's own cap is ~6 minutes; stopping at 5 leaves headroom for
+  // the search above and whatever the last in-flight request needs to finish.
+  var MAX_RUNTIME_MS = 5 * 60 * 1000
+  var stoppedEarly = false
 
   for (var t = 0; t < threads.length; t++) {
+    if (Date.now() - startedAt > MAX_RUNTIME_MS) {
+      stoppedEarly = true
+      break
+    }
+
     var messages = threads[t].getMessages()
 
     for (var m = 0; m < messages.length; m++) {
@@ -165,7 +184,14 @@ function backfillTwoMonths() {
     if (failed === 0) threads[t].addLabel(label)
   }
 
-  console.log('Big Green backfill: sent ' + sent + ', failed ' + failed)
+  console.log(
+    'Big Green backfill: sent ' + sent + ', failed ' + failed +
+      (stoppedEarly
+        ? '. Stopped early to stay under the execution time limit — run backfillTwoMonths again to pick up where this left off.'
+        : threads.length === 0
+          ? '. Nothing left to backfill.'
+          : '. Done.'),
+  )
 }
 
 function post(url, secret, payload) {
