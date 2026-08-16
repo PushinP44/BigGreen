@@ -174,7 +174,19 @@ function post(url, secret, payload) {
 
   // Signed over `timestamp.body` so a captured request cannot be replayed with
   // a fresh timestamp — the timestamp is inside the signed material.
-  var signature = Utilities.computeHmacSha256Signature(timestamp + '.' + body, secret)
+  //
+  // Both the signature input and the actual request payload are built from
+  // the SAME explicit UTF-8 byte array (via Utilities.newBlob), rather than
+  // handing computeHmacSha256Signature and UrlFetchApp.fetch a plain string
+  // each and trusting them to encode it the same way. They do not, for
+  // non-ASCII bytes — real bank alerts routinely carry currency symbols and
+  // smart quotes — which silently signs different bytes than the ones that
+  // go over the wire, even though both sides see the same string length.
+  var signedMaterial = timestamp + '.' + body
+  var signatureBytes = Utilities.newBlob(signedMaterial).getBytes()
+  var bodyBytes = Utilities.newBlob(body).getBytes()
+
+  var signature = Utilities.computeHmacSha256Signature(signatureBytes, secret)
     .map(function (byte) {
       return ('0' + (byte & 0xff).toString(16)).slice(-2)
     })
@@ -183,7 +195,7 @@ function post(url, secret, payload) {
   var response = UrlFetchApp.fetch(url, {
     method: 'post',
     contentType: 'application/json',
-    payload: body,
+    payload: bodyBytes,
     headers: { 'X-Signature': signature, 'X-Timestamp': timestamp },
     muteHttpExceptions: true,
   })
