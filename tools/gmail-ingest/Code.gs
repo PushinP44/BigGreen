@@ -13,6 +13,8 @@
  *        INGEST_SECRET  the same value as EMAIL_INGEST_SECRET in .env.local
  *   3. Run `pollOnce` once by hand and grant the permissions it asks for.
  *   4. Run `installTrigger` once. That is what makes it unattended.
+ *   5. Optional, once, if you want history: run `backfillTwoMonths` by hand.
+ *      See its own comment below before running it.
  *
  * IMPORTANT: the trigger must be an *installable* one, which `installTrigger`
  * creates. A simple trigger cannot call UrlFetchApp, and the failure is silent
@@ -92,6 +94,78 @@ function pollOnce() {
   }
 
   console.log('Big Green: sent ' + sent + ', failed ' + failed)
+}
+
+/**
+ * One-time historical import — NOT installed as a trigger, not meant to run
+ * on a schedule. `pollOnce`'s 7-day window is deliberately narrow so a first
+ * authorization does not flood the ledger with years of history in one go;
+ * this widens it once, by hand, to seed real spending history so the
+ * trailing-months average on /categories has something to average instead
+ * of starting from zero.
+ *
+ * Deliberately a separate, self-contained function rather than `pollOnce`
+ * with a parameter — keeps the tested, unattended live path untouched by
+ * anything backfill-specific.
+ *
+ * Uses the SAME PROCESSED_LABEL as pollOnce, so the two never re-send the
+ * same message once one of them has: whichever runs first labels it, and
+ * the receiver is idempotent on messageId as a second line of defence
+ * either way.
+ *
+ * Whatever lands below the auto-post confidence bar goes to /review exactly
+ * like live mail does — this does not relax that. Once everything from this
+ * run has settled (auto-posted immediately, or reviewed and confirmed by
+ * hand), run `pnpm db:reconcile-backfill` on the server side, so today's
+ * account balances are not pulled down by spending that already happened
+ * before you set them.
+ */
+function backfillTwoMonths() {
+  var props = PropertiesService.getScriptProperties()
+  var url = props.getProperty('INGEST_URL')
+  var secret = props.getProperty('INGEST_SECRET')
+
+  if (!url || !secret) {
+    throw new Error('Set INGEST_URL and INGEST_SECRET in Script Properties first.')
+  }
+
+  var from = SENDERS.map(function (s) {
+    return 'from:' + s
+  }).join(' OR ')
+  var query = '(' + from + ') newer_than:60d -label:' + PROCESSED_LABEL
+
+  var label = getOrCreateLabel(PROCESSED_LABEL)
+  var threads = GmailApp.search(query, 0, 200)
+  var sent = 0
+  var failed = 0
+
+  for (var t = 0; t < threads.length; t++) {
+    var messages = threads[t].getMessages()
+
+    for (var m = 0; m < messages.length; m++) {
+      var message = messages[m]
+
+      var payload = {
+        messageId: message.getId(),
+        from: message.getFrom(),
+        subject: message.getSubject(),
+        body: message.getPlainBody().slice(0, 50000),
+        receivedAt: message.getDate().toISOString(),
+      }
+
+      try {
+        post(url, secret, payload)
+        sent++
+      } catch (err) {
+        failed++
+        console.error('Big Green backfill failed for ' + payload.messageId + ': ' + err)
+      }
+    }
+
+    if (failed === 0) threads[t].addLabel(label)
+  }
+
+  console.log('Big Green backfill: sent ' + sent + ', failed ' + failed)
 }
 
 function post(url, secret, payload) {

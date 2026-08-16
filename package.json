@@ -18,7 +18,8 @@
     "db:migrate": "drizzle-kit migrate",
     "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "db:seed": "node scripts/seed.ts",
-    "db:claim": "node scripts/claim.ts"
+    "db:claim": "node scripts/claim.ts",
+    "db:reconcile-backfill": "node scripts/reconcile-backfill.ts"
   },
   "packageManager": "pnpm@11.21.0",
   "engines": {
