@@ -8,6 +8,11 @@ function formatQuantity(quantity: string): string {
   return quantity.replace(/0+$/, '').replace(/\.$/, '')
 }
 
+/** "12.5" → "12.50%", "-8" → "-8.00%" — sign comes from the number itself, no explicit "+". */
+function formatPercent(percent: number): string {
+  return `${percent.toFixed(2)}%`
+}
+
 function HoldingRow({ holding }: { holding: PricedHolding }) {
   const currency = holding.currency as Currency
   const amount = (minor: bigint) => formatMoney(money(minor, currency))
@@ -34,6 +39,13 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
         )}
       </td>
       <td className="tabular py-2 pr-4 text-right">
+        {holding.costBasisMinor === null ? (
+          <span className="text-(--color-muted)">COST UNKNOWN</span>
+        ) : (
+          amount(holding.costBasisMinor)
+        )}
+      </td>
+      <td className="tabular py-2 pr-4 text-right">
         {holding.priceMinor === null ? '—' : amount(holding.priceMinor)}
       </td>
       <td className="tabular py-2 pr-4 text-right">
@@ -48,7 +60,18 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
               : 'text-red-600 dark:text-red-400'
         }`}
       >
-        {holding.unrealizedPlMinor === null ? '—' : amount(holding.unrealizedPlMinor)}
+        {holding.unrealizedPlMinor === null ? (
+          '—'
+        ) : (
+          <>
+            {amount(holding.unrealizedPlMinor)}
+            {holding.unrealizedPlPercent === null ? null : (
+              <span className="ml-1 text-xs opacity-80">
+                ({formatPercent(holding.unrealizedPlPercent)})
+              </span>
+            )}
+          </>
+        )}
       </td>
     </tr>
   )
@@ -82,6 +105,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
               <th className="py-2 pr-4 font-medium">Symbol</th>
               <th className="py-2 pr-4 text-right font-medium">Quantity</th>
               <th className="py-2 pr-4 text-right font-medium">Avg cost</th>
+              <th className="py-2 pr-4 text-right font-medium">Initial cost</th>
               <th className="py-2 pr-4 text-right font-medium">Last price</th>
               <th className="py-2 pr-4 text-right font-medium">Value</th>
               <th className="py-2 text-right font-medium">Unrealised P/L</th>

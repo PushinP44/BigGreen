@@ -4,6 +4,7 @@ import {
   computeHoldings,
   multiplyQuantityByPriceMinor,
   parseQuantity,
+  percentChange,
   quantityToString,
   type HoldingEntrySnapshot,
 } from '@/lib/domain/holdings'
@@ -144,5 +145,34 @@ describe('computeHoldings', () => {
       ),
       { numRuns: 200 },
     )
+  })
+})
+
+describe('percentChange', () => {
+  it('reports a gain as a positive percent', () => {
+    // Paid 1,500.00, now worth 1,650.00 — up 10%.
+    expect(percentChange(150000n, 165000n)).toBe(10)
+  })
+
+  it('reports a loss as a negative percent', () => {
+    // Paid 1,500.00, now worth 1,200.00 — down 20%.
+    expect(percentChange(150000n, 120000n)).toBe(-20)
+  })
+
+  it('is exactly zero when value has not moved from cost', () => {
+    expect(percentChange(150000n, 150000n)).toBe(0)
+  })
+
+  it('is null when the cost basis is unknown', () => {
+    // COST UNKNOWN (PLAN §3) — a percent of an unknown base is equally unknown.
+    expect(percentChange(null, 165000n)).toBeNull()
+  })
+
+  it('is null when there is no current value yet', () => {
+    expect(percentChange(150000n, null)).toBeNull()
+  })
+
+  it('is null rather than dividing by zero when the cost basis is exactly zero', () => {
+    expect(percentChange(0n, 100n)).toBeNull()
   })
 })

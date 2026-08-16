@@ -69,6 +69,27 @@ export function multiplyQuantityByPriceMinor(quantity: Quantity, priceMinor: big
   return divRoundHalfEven(quantity.scaled * priceMinor, QUANTITY_SCALE_FACTOR)
 }
 
+/**
+ * Percent change of current value against what was originally paid, e.g.
+ * `12.5` for a 12.5% gain, `-8` for an 8% loss. Null whenever either side is
+ * unknown or the cost basis is exactly zero — a percentage built on an
+ * unknown or zero base is exactly as fabricated as the COST UNKNOWN P/L it is
+ * derived from (PLAN §3), so it stays null rather than reading as 0% or
+ * Infinity.
+ *
+ * A plain `number` rather than a scaled bigint: this is a display-only ratio
+ * between two minor-unit amounts in the same currency, never summed, stored,
+ * or compared for equality — unlike a `Money` value, so `money.ts`'s
+ * never-a-float rule does not apply to it.
+ */
+export function percentChange(
+  costBasisMinor: bigint | null,
+  currentValueMinor: bigint | null,
+): number | null {
+  if (costBasisMinor === null || currentValueMinor === null || costBasisMinor === 0n) return null
+  return (Number(currentValueMinor - costBasisMinor) / Number(costBasisMinor)) * 100
+}
+
 export interface HoldingEntrySnapshot {
   readonly instrumentId: string
   readonly quantityDelta: string // NUMERIC(28,10), as Postgres returns it
