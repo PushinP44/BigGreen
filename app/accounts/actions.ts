@@ -121,17 +121,18 @@ export async function archiveAccount(
 }
 
 /**
- * Set an account's opening balance (what it held before you started tracking
- * it here) and the digits from its emailed alerts, for accounts that already
- * exist. `createAccount` covers both at creation time; this is the only way
- * to correct them afterwards, since neither is otherwise editable.
+ * Set an account's institution, opening balance (what it held before you
+ * started tracking it here), and the digits from its emailed alerts, for
+ * accounts that already exist. `createAccount` covers all three at creation
+ * time; this is the only way to correct them afterwards, since none of the
+ * three is otherwise editable.
  *
  * One form covers every account (mirrors `saveCard` in
  * settings/advanced/actions.ts), each field pre-filled with its current
  * value — so an unedited row is a no-op write, and only a row the person
- * actually cleared resets to blank/zero. All rows commit in one transaction:
- * a bad value partway through must not leave earlier rows saved and later
- * ones not.
+ * actually cleared resets to blank/zero/null. All rows commit in one
+ * transaction: a bad value partway through must not leave earlier rows
+ * saved and later ones not.
  */
 export async function updateAccountDetails(
   _previous: AccountState,
@@ -153,6 +154,11 @@ export async function updateAccountDetails(
         if (!row) throw new Error('account not found')
         const currency = row.currency.trim() as Currency
 
+        const institutionRaw = String(formData.get(`institution.${id}`) ?? '').trim()
+        if (institutionRaw.length > 40) {
+          throw new Error('institution must be 40 characters or fewer')
+        }
+
         const balanceRaw = String(formData.get(`openingBalance.${id}`) ?? '').trim()
         const openingBalanceMinor =
           balanceRaw === '' ? 0n : parseAmountInput(balanceRaw, currency).amountMinor
@@ -163,8 +169,13 @@ export async function updateAccountDetails(
         }
 
         await tx.query(
-          `UPDATE accounts SET opening_balance_minor = $2, account_last4 = $3 WHERE id = $1`,
-          [id, openingBalanceMinor.toString(), digitsRaw === '' ? null : digitsRaw],
+          `UPDATE accounts SET institution = $2, opening_balance_minor = $3, account_last4 = $4 WHERE id = $1`,
+          [
+            id,
+            institutionRaw === '' ? null : institutionRaw,
+            openingBalanceMinor.toString(),
+            digitsRaw === '' ? null : digitsRaw,
+          ],
         )
       }
     })

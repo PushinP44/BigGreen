@@ -102,6 +102,7 @@ export default async function AccountsPage() {
               name: account.name,
               kind: account.kind,
               currency: account.currency,
+              institution: account.institution,
               accountLast4: account.account_last4,
               openingBalanceMinor: account.opening_balance_minor,
             }))}
