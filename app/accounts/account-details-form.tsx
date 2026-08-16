@@ -9,6 +9,7 @@ export interface AccountDetailRow {
   readonly name: string
   readonly kind: string
   readonly currency: string
+  readonly institution: string | null
   readonly accountLast4: string | null
   readonly openingBalanceMinor: string
 }
@@ -20,11 +21,12 @@ const field =
 const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
 
 /**
- * The balance an account already held before you started tracking it here,
- * and the digits its emailed alerts show — the only way to set either on an
- * account that already exists, since `createAccount` only asks at creation.
- * One form, one save, every account — same shape as `CardSettings` in
- * settings/advanced, generalised past credit cards.
+ * The institution, the balance an account already held before you started
+ * tracking it here, and the digits its emailed alerts show — the only way
+ * to set any of the three on an account that already exists, since
+ * `createAccount` only asks at creation. One form, one save, every account
+ * — same shape as `CardSettings` in settings/advanced, generalised past
+ * credit cards.
  */
 export function AccountDetailsForm({ accounts }: { accounts: readonly AccountDetailRow[] }) {
   const [state, formAction, pending] = useActionState(updateAccountDetails, initial)
@@ -34,9 +36,10 @@ export function AccountDetailsForm({ accounts }: { accounts: readonly AccountDet
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <p className="max-w-2xl text-sm text-(--color-muted)">
-        Set what an account held before you started tracking it here, and the digits from its
-        emailed alerts — the front four of the account number, or the back four for a card.
-        Leave the digits blank if it never emails you.
+        Set the institution that emails this account (matches alerts to it), what it held before
+        you started tracking it here, and the digits from its emailed alerts — the front four of
+        the account number, or the back four for a card. Leave institution and digits blank if it
+        never emails you.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -53,6 +56,16 @@ export function AccountDetailsForm({ accounts }: { accounts: readonly AccountDet
                 {account.name}
                 <span className="ml-2 text-xs font-normal text-(--color-muted)">{currency}</span>
               </span>
+
+              <label className="flex flex-col gap-1">
+                <span className={label}>Institution</span>
+                <input
+                  name={`institution.${account.id}`}
+                  placeholder="hsbc"
+                  defaultValue={account.institution ?? ''}
+                  className={`w-32 ${field}`}
+                />
+              </label>
 
               <label className="flex flex-col gap-1">
                 <span className={label}>Opening balance</span>
