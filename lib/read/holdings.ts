@@ -11,6 +11,7 @@ import type { Db } from '@/lib/db/client'
 import {
   computeHoldings,
   multiplyQuantityByPriceMinor,
+  percentChange,
   quantityToString,
   type HoldingEntrySnapshot,
 } from '@/lib/domain/holdings'
@@ -25,12 +26,16 @@ export interface PricedHolding {
   readonly quantity: string
   /** Null is `COST UNKNOWN` (PLAN §3) — never rendered as zero. */
   readonly avgCostMinor: bigint | null
+  /** Total originally paid for the shares still held — `avgCostMinor` × quantity. Same nullability. */
+  readonly costBasisMinor: bigint | null
   readonly priceMinor: bigint | null
   readonly priceAsOf: string | null
   /** Null when there is no price at all yet. */
   readonly marketValueMinor: bigint | null
   /** Null unless both cost and price are known. */
   readonly unrealizedPlMinor: bigint | null
+  /** Same nullability as `unrealizedPlMinor` — a percent of an unknown P/L is equally unknown. */
+  readonly unrealizedPlPercent: number | null
   /** Null when there is no price; PLAN's 7-trading-day staleness convention. */
   readonly staleDays: number | null
 }
@@ -91,10 +96,12 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
       currency,
       quantity: quantityToString(holding.quantity),
       avgCostMinor: holding.avgCostMinor,
+      costBasisMinor,
       priceMinor,
       priceAsOf,
       marketValueMinor,
       unrealizedPlMinor,
+      unrealizedPlPercent: percentChange(costBasisMinor, marketValueMinor),
       staleDays: priceAsOf === null ? null : daysBetween(fromLocalDate(priceAsOf), now),
     })
   }
