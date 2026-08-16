@@ -34,6 +34,17 @@ export async function POST(request: Request) {
   // re-serialising JSON would change them.
   const rawBody = await request.text()
 
+  // TEMPORARY — diagnosing a signature-mismatch report. Logs nothing
+  // secret: byte/char lengths, the already-transmitted signature and
+  // timestamp headers, and the server's own clock. Remove once resolved.
+  console.log('[ingest-debug]', {
+    bodyByteLength: Buffer.byteLength(rawBody, 'utf8'),
+    bodyCharLength: rawBody.length,
+    receivedTimestamp: request.headers.get('x-timestamp'),
+    receivedSignature: request.headers.get('x-signature'),
+    serverNowMs: Date.now(),
+  })
+
   const verified = verifySignature(
     rawBody,
     request.headers.get('x-signature'),
