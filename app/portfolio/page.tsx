@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { requireSessionDb } from '@/lib/db/session'
 import { listAccountBalances } from '@/lib/read/accounts'
+import { loadHoldings } from '@/lib/read/holdings'
+import { HoldingsTable } from '../holdings-table'
 import { InstrumentForm } from './instrument-form'
 import { PositionForm } from './position-form'
 import { WeightInput } from './weight-input'
@@ -23,12 +25,17 @@ function bpsToPercentString(bps: number | null): string {
 export default async function PortfolioPage() {
   const { db } = await requireSessionDb()
 
-  const [instrumentRows, accounts] = await Promise.all([
+  // Explicit `now`, threaded into every date decision — domain functions
+  // never read the clock themselves (PLAN D4).
+  const now = new Date()
+
+  const [instrumentRows, accounts, holdings] = await Promise.all([
     db.query<InstrumentRow>(
       `SELECT id, symbol, kind::text AS kind, currency, target_weight_bps
          FROM instruments ORDER BY symbol`,
     ),
     listAccountBalances(db),
+    loadHoldings(db, now),
   ])
 
   const instruments = instrumentRows.rows.map((row) => ({
@@ -62,6 +69,13 @@ export default async function PortfolioPage() {
       </header>
 
       <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          Holdings
+        </h2>
+        <HoldingsTable holdings={holdings} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
           Instruments
         </h2>

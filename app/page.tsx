@@ -33,12 +33,12 @@ import {
 } from '@/lib/domain/ingest-health'
 import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
 import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
-import { loadHoldings, type PricedHolding } from '@/lib/read/holdings'
+import { loadHoldings } from '@/lib/read/holdings'
 import { countPendingSuggestions } from '@/lib/read/allocations'
 import { NetWorthChart, type NetWorthPoint } from './charts/net-worth-chart'
 import { EntryForm } from './entry-form'
+import { HoldingsTable } from './holdings-table'
 import { RefreshRates } from './refresh-rates'
-import { RefreshPrices } from './refresh-prices'
 
 const NET_WORTH_WEEKS = 26
 
@@ -347,34 +347,7 @@ export default async function Home() {
 
       <section className="flex flex-col gap-3">
         <h2 className={sectionHeading}>Holdings</h2>
-        {holdings.length === 0 ? (
-          <p className="text-sm text-(--color-muted)">No positions yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
-                  <th className="py-2 pr-4 font-medium">Symbol</th>
-                  <th className="py-2 pr-4 text-right font-medium">Quantity</th>
-                  <th className="py-2 pr-4 text-right font-medium">Avg cost</th>
-                  <th className="py-2 pr-4 text-right font-medium">Last price</th>
-                  <th className="py-2 pr-4 text-right font-medium">Value</th>
-                  <th className="py-2 text-right font-medium">Unrealised P/L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {holdings.map((holding) => (
-                  <HoldingRow key={holding.instrumentId} holding={holding} />
-                ))}
-              </tbody>
-            </table>
-            <p className="pt-2 text-xs text-(--color-muted)">
-              P/L totals exclude <span className="whitespace-nowrap">COST UNKNOWN</span> positions
-              — a fabricated gain is worse than an honest blank.
-            </p>
-          </div>
-        )}
-        <RefreshPrices />
+        <HoldingsTable holdings={holdings} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -568,58 +541,6 @@ function CardPanel({ card, currency }: { card: CardPosition; currency: Currency 
         <Term label="Credit left" value={amount(card.availableCreditMinor)} />
       ) : null}
     </div>
-  )
-}
-
-/** Trims a fixed-point decimal string's trailing zeros for display: "10.0000000000" → "10". */
-function formatQuantity(quantity: string): string {
-  if (!quantity.includes('.')) return quantity
-  return quantity.replace(/0+$/, '').replace(/\.$/, '')
-}
-
-function HoldingRow({ holding }: { holding: PricedHolding }) {
-  const currency = holding.currency as Currency
-  const amount = (minor: bigint) => formatMoney(money(minor, currency))
-  const stale = holding.staleDays !== null && holding.staleDays > 7
-
-  return (
-    <tr className="border-b border-(--color-line)/60">
-      <td className="py-2 pr-4">
-        {holding.symbol}
-        {stale ? (
-          <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-            {holding.staleDays}d old
-          </span>
-        ) : null}
-      </td>
-      <td className="tabular py-2 pr-4 text-right text-(--color-muted)">
-        {formatQuantity(holding.quantity)}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
-        {holding.avgCostMinor === null ? (
-          <span className="text-(--color-muted)">COST UNKNOWN</span>
-        ) : (
-          amount(holding.avgCostMinor)
-        )}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
-        {holding.priceMinor === null ? '—' : amount(holding.priceMinor)}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
-        {holding.marketValueMinor === null ? '—' : amount(holding.marketValueMinor)}
-      </td>
-      <td
-        className={`tabular py-2 text-right ${
-          holding.unrealizedPlMinor === null
-            ? ''
-            : holding.unrealizedPlMinor >= 0n
-              ? 'text-(--color-green)'
-              : 'text-red-600 dark:text-red-400'
-        }`}
-      >
-        {holding.unrealizedPlMinor === null ? '—' : amount(holding.unrealizedPlMinor)}
-      </td>
-    </tr>
   )
 }
 

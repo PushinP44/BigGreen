@@ -54,7 +54,16 @@ export function PositionForm({
     initial,
   )
 
-  const instrument = instruments.find((i) => i.id === instrumentId)
+  // `instrumentId` only gets its initial value at mount, so an instrument
+  // added after this component first rendered with an empty list would
+  // otherwise leave it stuck on '' forever — a server-action refresh updates
+  // `instruments` without remounting this client component. Fall back to the
+  // first instrument whenever the stored id no longer matches one currently
+  // in the list, rather than trusting raw state directly.
+  const selectedId = instruments.some((i) => i.id === instrumentId)
+    ? instrumentId
+    : (instruments[0]?.id ?? '')
+  const instrument = instruments.find((i) => i.id === selectedId)
 
   if (instruments.length === 0) {
     return (
@@ -90,7 +99,7 @@ export function PositionForm({
             <span className={label}>Instrument</span>
             <select
               name="instrumentId"
-              value={instrumentId}
+              value={selectedId}
               onChange={(e) => setInstrumentId(e.target.value)}
               className={field}
             >
@@ -147,7 +156,7 @@ export function PositionForm({
             <span className={label}>Instrument</span>
             <select
               name="instrumentId"
-              value={instrumentId}
+              value={selectedId}
               onChange={(e) => setInstrumentId(e.target.value)}
               className={field}
             >
