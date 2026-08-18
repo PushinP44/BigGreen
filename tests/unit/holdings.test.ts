@@ -5,6 +5,7 @@ import {
   multiplyQuantityByPriceMinor,
   parseQuantity,
   percentChange,
+  priceToAmountMinor,
   quantityToString,
   type HoldingEntrySnapshot,
 } from '@/lib/domain/holdings'
@@ -13,8 +14,9 @@ function leg(
   instrumentId: string,
   quantityDelta: string,
   amountMinor: bigint,
+  accountId = 'acct-1',
 ): HoldingEntrySnapshot {
-  return { instrumentId, quantityDelta, amountMinor }
+  return { instrumentId, accountId, quantityDelta, amountMinor }
 }
 
 describe('parseQuantity / quantityToString', () => {
@@ -48,6 +50,32 @@ describe('multiplyQuantityByPriceMinor', () => {
     expect(multiplyQuantityByPriceMinor(parseQuantity('0.5'), 1n)).toBe(0n)
     // 1.5 shares at 1 minor unit = 1.5 → rounds to even (2)
     expect(multiplyQuantityByPriceMinor(parseQuantity('1.5'), 1n)).toBe(2n)
+  })
+})
+
+describe('priceToAmountMinor', () => {
+  it('matches a fund trade confirmation stated to the cent', () => {
+    // Real Mox alert: 400.0000 units @ HKD11.2554, total HKD4,502.16 —
+    // a price with more decimal places than HKD's own minor unit.
+    expect(priceToAmountMinor('400.0000', '11.2554', 'HKD')).toBe(450216n)
+  })
+
+  it('matches a share trade with a whole-cent price', () => {
+    // Real ZA alert: 30 shares @ USD3.6100 — no total is stated, so this is
+    // the only way to get one.
+    expect(priceToAmountMinor('30', '3.6100', 'USD')).toBe(10830n)
+  })
+
+  it('rounds an exact half-cent to the nearest even cent, both directions', () => {
+    // 1 @ 1.005 = 1.005 exactly -> nearest even cent is 100 (not 101)
+    expect(priceToAmountMinor('1', '1.005', 'USD')).toBe(100n)
+    // 1 @ 1.015 = 1.015 exactly -> nearest even cent is 102 (not 101)
+    expect(priceToAmountMinor('1', '1.015', 'USD')).toBe(102n)
+  })
+
+  it('rejects a non-decimal quantity or price', () => {
+    expect(() => priceToAmountMinor('abc', '1.00', 'USD')).toThrow(/invalid decimal/)
+    expect(() => priceToAmountMinor('1', 'abc', 'USD')).toThrow(/invalid decimal/)
   })
 })
 
@@ -116,26 +144,60 @@ describe('computeHoldings', () => {
     expect(byId.get('voo')?.quantity).toEqual(parseQuantity('5'))
   })
 
+  it('keeps the same instrument in two different accounts independent, never merged', () => {
+    // The same stock at two different brokers is two positions, not one —
+    // this is what lets the UI show "AAPL 2 shares in ZA" and "AAPL 3 shares
+    // in Mox" as separate rows rather than a single blended "AAPL 5 shares"
+    // that hides which account either half is actually sitting in.
+    const entries = [
+      leg('aapl', '10', 150000n, 'za'), // 10 @ 150.00 in ZA
+      leg('aapl', '5', 90000n, 'mox'), // 5 @ 180.00 in Mox
+    ]
+    const results = computeHoldings(entries)
+    expect(results).toHaveLength(2)
+
+    const za = results.find((r) => r.accountId === 'za')
+    const mox = results.find((r) => r.accountId === 'mox')
+    expect(za?.instrumentId).toBe('aapl')
+    expect(za?.quantity).toEqual(parseQuantity('10'))
+    expect(za?.avgCostMinor).toBe(15000n)
+    expect(mox?.instrumentId).toBe('aapl')
+    expect(mox?.quantity).toEqual(parseQuantity('5'))
+    expect(mox?.avgCostMinor).toBe(18000n)
+  })
+
+  it('omits a zero-net position in one account while keeping it in another', () => {
+    const entries = [
+      leg('aapl', '10', 150000n, 'za'),
+      leg('aapl', '-10', 160000n, 'za'), // fully sold in ZA
+      leg('aapl', '3', 45000n, 'mox'), // still held in Mox
+    ]
+    const results = computeHoldings(entries)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ instrumentId: 'aapl', accountId: 'mox' })
+  })
+
   it('is order-independent — summing entries in any order gives the same quantity', () => {
     fc.assert(
       fc.property(
         fc.array(
           fc.tuple(
             fc.constantFrom('aapl', 'voo'),
+            fc.constantFrom('za', 'mox'),
             fc.integer({ min: -1000, max: 1000 }),
             fc.bigInt({ min: 0n, max: 10n ** 7n }),
           ),
           { minLength: 1, maxLength: 20 },
         ),
         (deltas) => {
-          const entries = deltas.map(([instrumentId, qty, amount]) =>
-            leg(instrumentId, qty.toString(), qty > 0 ? amount : 0n),
+          const entries = deltas.map(([instrumentId, accountId, qty, amount]) =>
+            leg(instrumentId, qty.toString(), qty > 0 ? amount : 0n, accountId),
           )
           const shuffled = [...entries].reverse()
 
           const totalsOf = (rows: HoldingEntrySnapshot[]) => {
             const result = computeHoldings(rows)
-            return new Map(result.map((r) => [r.instrumentId, r.quantity.scaled]))
+            return new Map(result.map((r) => [`${r.instrumentId} ${r.accountId}`, r.quantity.scaled]))
           }
 
           const a = totalsOf(entries)

@@ -16,6 +16,11 @@ build/
 *.pem
 *.key
 
+# real bank-notice samples used to build the email parsers — contain real
+# names, phone numbers and account fragments; redacted versions live in
+# tests/fixtures/emails/ instead
+bank-notice_example/
+
 # supabase local
 supabase/.branches/
 supabase/.temp/

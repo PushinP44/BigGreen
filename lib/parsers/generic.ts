@@ -192,6 +192,7 @@ export const genericParser: Parser = {
       parserId: 'generic',
       confidence: Math.min(1, Math.round(confidence * 100) / 100),
       fields: {
+        kind: 'transaction',
         amountMinor: primary.amountMinor,
         currency: primary.currency,
         direction: isCredit && !isDebit ? 'income' : 'spend',

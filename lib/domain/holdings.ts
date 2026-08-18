@@ -10,7 +10,7 @@
  * Pure: no I/O, no clock.
  */
 
-import { divRoundHalfEven } from './money'
+import { divRoundHalfEven, minorUnitsOf, type Currency } from './money'
 
 /**
  * `quantity_delta` is `NUMERIC(28,10)`, arriving from Postgres as a string.
@@ -69,6 +69,44 @@ export function multiplyQuantityByPriceMinor(quantity: Quantity, priceMinor: big
   return divRoundHalfEven(quantity.scaled * priceMinor, QUANTITY_SCALE_FACTOR)
 }
 
+const DECIMAL_STRING = /^\d+(\.\d+)?$/
+
+function decimalDigits(input: string): { digits: bigint; decimals: number } {
+  const trimmed = input.trim()
+  if (!DECIMAL_STRING.test(trimmed)) {
+    throw new HoldingsError(`invalid decimal: ${JSON.stringify(input)}`)
+  }
+  const [whole = '0', fraction = ''] = trimmed.split('.')
+  return { digits: BigInt(whole + fraction), decimals: fraction.length }
+}
+
+/**
+ * Quantity × a per-unit price quoted with *more* precision than the trade's
+ * own currency — the shape a trade confirmation email gives when it states a
+ * price per share/unit but not the total (ZA's buy-order alerts do this;
+ * fund unit prices commonly run to 4 decimal places, e.g. `HKD11.2554`,
+ * which is not itself representable as whole cents).
+ *
+ * Both inputs are taken as exact decimal strings — never floats — and
+ * multiplied as integers, only rounding once, at the very end, down to the
+ * target currency's minor unit (half-even, same as every other rounding
+ * point in this codebase). This is the one general-purpose sibling to
+ * `multiplyQuantityByPriceMinor` above; that one assumes the price is
+ * already a whole number of minor units, which a quoted trade price often
+ * is not.
+ */
+export function priceToAmountMinor(quantity: string, pricePerUnit: string, currency: Currency): bigint {
+  const q = decimalDigits(quantity)
+  const p = decimalDigits(pricePerUnit)
+  const product = q.digits * p.digits
+  const totalDecimals = q.decimals + p.decimals
+  const targetDecimals = minorUnitsOf(currency)
+
+  const shift = totalDecimals - targetDecimals
+  if (shift <= 0) return product * 10n ** BigInt(-shift)
+  return divRoundHalfEven(product, 10n ** BigInt(shift))
+}
+
 /**
  * Percent change of current value against what was originally paid, e.g.
  * `12.5` for a 12.5% gain, `-8` for an 8% loss. Null whenever either side is
@@ -92,6 +130,8 @@ export function percentChange(
 
 export interface HoldingEntrySnapshot {
   readonly instrumentId: string
+  /** Which account holds this leg — GRAB in ZA and GRAB in IBKR are different positions. */
+  readonly accountId: string
   readonly quantityDelta: string // NUMERIC(28,10), as Postgres returns it
   /** Cost leg in the instrument's own currency. Zero for a legacy add with unknown cost. */
   readonly amountMinor: bigint
@@ -99,13 +139,22 @@ export interface HoldingEntrySnapshot {
 
 export interface HoldingResult {
   readonly instrumentId: string
+  readonly accountId: string
   readonly quantity: Quantity
   /** Null when no leg carried a nonzero cost — `COST UNKNOWN`, never zero (PLAN §3). */
   readonly avgCostMinor: bigint | null
 }
 
+/** `Map`/grouping key — the same instrument in two different accounts is two positions, not one. */
+function positionKey(instrumentId: string, accountId: string): string {
+  return `${instrumentId}:${accountId}`
+}
+
 /**
- * One position per instrument, computed from every entry that touches it.
+ * One position per (instrument, account) pair, computed from every entry
+ * that touches it. The same instrument held in two different accounts — the
+ * same stock at two different brokers — is two independent positions, never
+ * merged into one number that hides which account it's actually sitting in.
  * Positions netted to exactly zero are omitted — nothing is held.
  *
  * `avgCost` is built only from legs carrying a nonzero `amountMinor` *and* a
@@ -120,20 +169,21 @@ export interface HoldingResult {
 export function computeHoldings(entries: readonly HoldingEntrySnapshot[]): HoldingResult[] {
   const quantities = new Map<string, Quantity>()
   const costTotals = new Map<string, { costMinor: bigint; costQuantity: Quantity }>()
+  const identity = new Map<string, { instrumentId: string; accountId: string }>()
 
   for (const entry of entries) {
+    const key = positionKey(entry.instrumentId, entry.accountId)
+    identity.set(key, { instrumentId: entry.instrumentId, accountId: entry.accountId })
+
     const delta = parseQuantity(entry.quantityDelta)
-    quantities.set(
-      entry.instrumentId,
-      addQuantity(quantities.get(entry.instrumentId) ?? ZERO_QUANTITY, delta),
-    )
+    quantities.set(key, addQuantity(quantities.get(key) ?? ZERO_QUANTITY, delta))
 
     if (entry.amountMinor !== 0n && delta.scaled > 0n) {
-      const current = costTotals.get(entry.instrumentId) ?? {
+      const current = costTotals.get(key) ?? {
         costMinor: 0n,
         costQuantity: ZERO_QUANTITY,
       }
-      costTotals.set(entry.instrumentId, {
+      costTotals.set(key, {
         costMinor: current.costMinor + entry.amountMinor,
         costQuantity: addQuantity(current.costQuantity, delta),
       })
@@ -141,16 +191,17 @@ export function computeHoldings(entries: readonly HoldingEntrySnapshot[]): Holdi
   }
 
   const results: HoldingResult[] = []
-  for (const [instrumentId, quantity] of quantities) {
+  for (const [key, quantity] of quantities) {
     if (quantity.scaled === 0n) continue // fully sold — nothing is held
 
-    const cost = costTotals.get(instrumentId)
+    const cost = costTotals.get(key)
     const avgCostMinor =
       cost && cost.costQuantity.scaled > 0n
         ? divRoundHalfEven(cost.costMinor * QUANTITY_SCALE_FACTOR, cost.costQuantity.scaled)
         : null
 
-    results.push({ instrumentId, quantity, avgCostMinor })
+    const { instrumentId, accountId } = identity.get(key)!
+    results.push({ instrumentId, accountId, quantity, avgCostMinor })
   }
 
   return results

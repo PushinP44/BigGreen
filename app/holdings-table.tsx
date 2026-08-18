@@ -28,6 +28,7 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
           </span>
         ) : null}
       </td>
+      <td className="py-2 pr-4 text-(--color-muted)">{holding.accountName}</td>
       <td className="tabular py-2 pr-4 text-right text-(--color-muted)">
         {formatQuantity(holding.quantity)}
       </td>
@@ -79,8 +80,11 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
 
 /**
  * Quantity, avg cost, last price, market value and unrealised P/L per
- * instrument — holdings are a derived read model (PLAN §7), never stored
- * directly, so this is the one place their current value actually renders.
+ * instrument *and account* — the same stock held at two different brokers
+ * renders as two rows, never blended into one number that hides which
+ * account either half is sitting in. Holdings are a derived read model
+ * (PLAN §7), never stored directly, so this is the one place their current
+ * value actually renders.
  * Shared between the dashboard and `/portfolio`, which both need it: the
  * dashboard for the whole-net-worth picture, `/portfolio` because it is
  * otherwise just instrument config and a trade form with no view of what
@@ -103,6 +107,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
           <thead>
             <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
               <th className="py-2 pr-4 font-medium">Symbol</th>
+              <th className="py-2 pr-4 font-medium">Account</th>
               <th className="py-2 pr-4 text-right font-medium">Quantity</th>
               <th className="py-2 pr-4 text-right font-medium">Avg cost</th>
               <th className="py-2 pr-4 text-right font-medium">Initial cost</th>
@@ -113,7 +118,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
           </thead>
           <tbody>
             {holdings.map((holding) => (
-              <HoldingRow key={holding.instrumentId} holding={holding} />
+              <HoldingRow key={`${holding.instrumentId}-${holding.accountId}`} holding={holding} />
             ))}
           </tbody>
         </table>

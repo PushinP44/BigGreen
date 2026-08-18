@@ -503,28 +503,43 @@ one-user tool that trade is not close.
 What that buys back: no parser modules, no fixtures, no `inbox_items`, no confidence
 thresholds, no per-institution breakage when a bank changes a template. §10 shrinks with it.
 
-**Revised, post rev 3.** The reasoning above held — it is why HSBC's alert runs on a generic
-heuristic parser rather than five per-institution ones, and why the other four institutions
-still route through manual entry (§7.1 is unchanged). But the owner reopened this specifically
-for the one institution that does send usable email, on the logic that one working channel is
-still worth having even though it can never be the whole answer. Built: `lib/ingest/email.ts`
-(Apps Script poller → HMAC-signed endpoint) and `lib/parsers/` (generic parser + a registry
-sized for more later, though none exist yet — see §13's "a redacted HSBC alert" row). Confidence
+**Revised, post rev 3.** The reasoning above held at the time — it is why HSBC's alert first ran
+on a generic heuristic parser rather than a per-institution one, and why email ingest was scoped
+to "the one institution that sends usable email" when the owner reopened it, on the logic that
+one working channel is still worth having even though it can never be the whole answer. Built:
+`lib/ingest/email.ts` (Apps Script poller → HMAC-signed endpoint) and `lib/parsers/`. Confidence
 scoring and a review queue did get built, contrary to "what that buys back" above — this is the
 one place their cost was judged worth paying. **Every "cut"/"deferred" reference to email
 ingest elsewhere in this document predates this reversal** and should be read as superseded by
 this note, not as the current state.
 
+**Corrected 2026-08-17.** "Only HSBC sends per-transaction email" was never actually verified
+against real mail — it was a research note, and it was wrong. Redacted samples from all four
+institutions (`bank-notice_example/`) show ZA, Mox and KTB all send usable per-transaction
+alerts too: ZA for card spend, outgoing transfers and brokerage trades; Mox for brokerage trades
+and outgoing transfers; KTB for PromptPay transfers. Per-sender parsers for all four now live in
+`lib/parsers/` (`hsbc.ts`, `za.ts`, `mox.ts`, `ktb.ts`), registered in `lib/parsers/registry.ts`.
+Octopus and PayMe remain manual-only — no sample has ever suggested otherwise for either.
+
 | Institution | Per-transaction email? | Apple Pay | v1 channel |
 |---|---|---|---|
-| **HSBC HK** | Yes (alerts configurable) | Yes | Manual (+ tap, if the spike passes) |
-| **ZA Bank** | No — push-first | Yes | Manual (+ tap) |
-| **Mox** | No — push-first | Yes | Manual (+ tap) |
+| **HSBC HK** | Yes (alerts configurable) | Yes | Email (`hsbc.ts`) + manual + tap, if the spike passes |
+| **ZA Bank** | **Yes** — card, transfer and trade alerts | Yes | Email (`za.ts`) + manual + tap |
+| **Mox** | **Yes** — trade and transfer alerts | Yes | Email (`mox.ts`) + manual + tap |
+| **KTB** | **Yes** — PromptPay transfer alerts (Thai) | n/a | Email (`ktb.ts`) + manual |
 | **Octopus** | No | Wallet (Express Transit) | Manual; tap **unconfirmed** |
 | **PayMe** | No | n/a | Manual |
 
-**One of five sends usable per-transaction email**, which is what made the email backbone a bad
-bet for this account set regardless of the domain problem.
+Card purchases and KTB's third-party-named PromptPay transfers post through the same
+confidence-gated pipeline HSBC always used. Credit-card bill payments and self-to-self FPS/
+PromptPay-style transfers are different in kind, not degree: `/review` can confirm or discard a
+row but never correct it, so a transfer only ever posts once *both* accounts resolve with
+certainty, and never auto-posts outright even then (`TRANSFER_TRADE_CONFIDENCE_CAP` in
+`lib/ingest/email.ts`) — getting one wrong risks real money misfiled as income or spending,
+which is the one thing this ledger is built to prevent (D1). Brokerage trades (ZA, Mox) extend
+`ParsedTransaction` with a `trade` shape carrying `instrument_id`/`quantity_delta`, matched or
+auto-created against `instruments` by symbol/ISIN — the same never-auto-post-on-uncertainty rule
+applies whenever the instrument is newly created rather than matched.
 
 ### 7.2 Apple Pay tap automation — the one automatic channel worth keeping
 
@@ -768,7 +783,7 @@ phases they touch:
 
 | Question | Answer | Consequence |
 |---|---|---|
-| Which institutions? | HSBC, ZA Bank, Mox, Octopus, PayMe | §7.1; only HSBC has a usable email channel |
+| Which institutions? | HSBC, ZA Bank, Mox, Octopus, PayMe | §7.1; HSBC, ZA, Mox and KTB all turned out to have a usable email channel — corrected 2026-08-17, see §7.0 |
 | Domain for Cloudflare Email Routing? | No | Cloudflare Worker dropped |
 | Market data? | Free FX + Finnhub for US-listed equities, manual elsewhere | Frankfurter/ECB and Finnhub free tier (§7.3) — revised post-P4, no paid provider |
 | Credit-card modelling? | Keep it simple | No cycle fields; full balance committed (§5) |
