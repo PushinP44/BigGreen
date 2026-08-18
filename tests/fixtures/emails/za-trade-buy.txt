@@ -1,0 +1,23 @@
+Buy Order Executed
+Hello
+Alex
+:
+Your
+buy
+order instruction of stock is fully executed.
+Buy order:
+GRAB
+(
+Grab Holdings
+)
+Order quantity:
+30
+shares
+The execution details:
+30
+shares
+@
+USD
+3.6100
+Please log in to ZA Bank App for order details.
+For any inquiries, please log in to ZA Bank App and contact us.

@@ -15,7 +15,15 @@
 
 import type { Currency } from '@/lib/domain/money'
 
-export interface ParsedTransaction {
+interface ParsedBase {
+  /** When the bank says it happened; null means fall back to the email date. */
+  readonly occurredAt: Date | null
+  readonly description: string
+}
+
+/** An ordinary card purchase, refund, or debit against one of your accounts. */
+export interface ParsedSpend extends ParsedBase {
+  readonly kind: 'transaction'
   /** Minor units, always positive. `direction` carries the sign. */
   readonly amountMinor: bigint
   readonly currency: Currency
@@ -23,10 +31,50 @@ export interface ParsedTransaction {
   readonly merchant: string | null
   /** Last 4 digits of the card or account, when the message states them. */
   readonly accountLast4: string | null
-  /** When the bank says it happened; null means fall back to the email date. */
-  readonly occurredAt: Date | null
-  readonly description: string
 }
+
+/**
+ * Money moving between two accounts — a credit-card bill payment, an FPS/
+ * PromptPay transfer. Deliberately does not carry a resolved counterparty
+ * *account*: a parser is pure text-in claim-out and has no database to check
+ * against. `counterpartyLabel` is only ever the raw signal the message gives
+ * (a payee name, a phone number, an institution mention) — resolving it to a
+ * real account, or refusing to, is `lib/ingest/email.ts`'s job.
+ */
+export interface ParsedTransfer extends ParsedBase {
+  readonly kind: 'transfer'
+  readonly amountMinor: bigint
+  readonly currency: Currency
+  /** Last 4 of the account this alert names explicitly, when it names one. */
+  readonly accountLast4: string | null
+  /** Which way money moved relative to the `accountLast4` account. */
+  readonly accountRole: 'source' | 'destination'
+  /**
+   * Free-text signal about the *other* side. Never assumed to be a real
+   * account — the ingest layer tries to match it against your own accounts
+   * and refuses to post when it can't, rather than guess.
+   */
+  readonly counterpartyLabel: string | null
+}
+
+/** A brokerage buy or sell — the cash leg and the instrument leg together. */
+export interface ParsedTrade extends ParsedBase {
+  readonly kind: 'trade'
+  readonly side: 'buy' | 'sell'
+  /** Ticker or fund identifier, as the message gives it — normalised by the ingest layer. */
+  readonly symbol: string
+  readonly isin: string | null
+  readonly instrumentKind: 'stock' | 'etf' | 'index_fund' | 'mutual_fund'
+  /** Decimal string, e.g. "30" or "400.0000" — matches `lib/domain/holdings.ts`'s `parseQuantity`. */
+  readonly quantity: string
+  /** Total cash moved: cost for a buy, proceeds for a sell. */
+  readonly amountMinor: bigint
+  readonly currency: Currency
+  /** Brokerage account last 4, when the message states it. */
+  readonly accountLast4: string | null
+}
+
+export type ParsedTransaction = ParsedSpend | ParsedTransfer | ParsedTrade
 
 /**
  * Confidence is the probability that posting this unreviewed is safe.

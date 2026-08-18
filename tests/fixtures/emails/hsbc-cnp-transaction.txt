@@ -1,0 +1,38 @@
+The Hongkong and Shanghai Banking Corporation Limited, 1 Queen's Road Central, Hong
+Kong.
+If you cannot view this email properly, please configure your email programme so that
+it can support HTML formatted emails.
+Please scroll down for Chinese version 請往下看以閱讀中文版本
+HSBC Credit Card Transaction Notification
+Dear Customer
+Thank you for using our credit card service.
+We have recorded the following card-not-present* transaction:
+Credit card number
+Ending with 4321
+Merchant
+APPLE.COM/BILL
+Date
+12 May
+Amount
+HKD18.00
+* Card-not-present transactions refer to credit card payments without presenting physical
+card or digital wallet, which include but not limited to payments made online, in-app,
+by phone, fax or mail.
+You may check further details of the above transaction on the HSBC HK App or HSBC
+Online Banking.
+If you have any doubt, please call our hotlines listed below.
+Thank you for choosing HSBC. It's always a pleasure to serve you.
+滙豐信用卡交易通知
+親愛的客戶
+多謝您使用我們的信用卡服務。
+我們記錄到一筆無卡*交易，詳情如下：
+信用卡號碼
+結尾數字 4321
+商戶
+APPLE.COM/BILL
+日期
+5月12日
+金額
+HKD18.00
+* 無卡交易指未有向商戶出示實體信用卡或電子錢包的信用卡交易。
+您可登入香港滙豐流動理財應用程式或滙豐網上理財查看以上交易的更多詳情。

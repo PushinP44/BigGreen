@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { genericParser } from '@/lib/parsers/generic'
-import { institutionOf, parseEmail } from '@/lib/parsers/registry'
-import type { EmailMessage } from '@/lib/parsers/types'
+import { institutionFromText, institutionOf, parseEmail } from '@/lib/parsers/registry'
+import type { EmailMessage, ParseResult } from '@/lib/parsers/types'
 
 function email(overrides: Partial<EmailMessage> = {}): EmailMessage {
   return {
@@ -12,6 +12,12 @@ function email(overrides: Partial<EmailMessage> = {}): EmailMessage {
     receivedAt: new Date('2026-08-12T04:00:00Z'),
     ...overrides,
   }
+}
+
+/** genericParser only ever emits `kind: 'transaction'` — this just gives the tests below their fields back narrowed. */
+function spendFields(result: ParseResult | null) {
+  if (!result || result.fields.kind !== 'transaction') return undefined
+  return result.fields
 }
 
 describe('amount extraction', () => {
@@ -97,12 +103,12 @@ describe('confidence', () => {
 describe('direction', () => {
   it('reads a refund as income', () => {
     const result = genericParser.parse(email({ body: 'A refund of HKD 120.00 has been credited.' }))
-    expect(result?.fields.direction).toBe('income')
+    expect(spendFields(result)?.direction).toBe('income')
   })
 
   it('reads a purchase as a spend', () => {
     const result = genericParser.parse(email({ body: 'Purchase of HKD 120.00 was charged.' }))
-    expect(result?.fields.direction).toBe('spend')
+    expect(spendFields(result)?.direction).toBe('spend')
   })
 
   it('assumes a charge when the wording says both, and says so', () => {
@@ -111,7 +117,7 @@ describe('direction', () => {
     const result = genericParser.parse(
       email({ body: 'Your refund purchase of HKD 500.00 was charged and credited.' }),
     )
-    expect(result?.fields.direction).toBe('spend')
+    expect(spendFields(result)?.direction).toBe('spend')
     expect(result!.notes.join(' ')).toMatch(/both a charge and a credit/)
   })
 })
@@ -119,21 +125,21 @@ describe('direction', () => {
 describe('merchant and card', () => {
   it('takes a labelled merchant', () => {
     expect(
-      genericParser.parse(email({ body: 'HKD 100.00 merchant: CITY SUPER LTD on 12 Aug' }))?.fields
-        .merchant,
+      spendFields(genericParser.parse(email({ body: 'HKD 100.00 merchant: CITY SUPER LTD on 12 Aug' })))
+        ?.merchant,
     ).toBe('CITY SUPER LTD')
   })
 
   it('takes an inline "at MERCHANT"', () => {
     expect(
-      genericParser.parse(email({ body: 'Purchase HKD 100.00 at PARK N SHOP on 12 Aug' }))?.fields
-        .merchant,
+      spendFields(genericParser.parse(email({ body: 'Purchase HKD 100.00 at PARK N SHOP on 12 Aug' })))
+        ?.merchant,
     ).toBe('PARK N SHOP')
   })
 
   it('admits it does not know rather than inventing one', () => {
     const result = genericParser.parse(email({ body: 'Purchase of HKD 100.00 was charged.' }))
-    expect(result?.fields.merchant).toBeNull()
+    expect(spendFields(result)?.merchant).toBeNull()
     expect(result!.notes.join(' ')).toMatch(/no merchant/)
   })
 
@@ -184,5 +190,35 @@ describe('registry', () => {
   it('returns null for mail nothing can read', () => {
     // Statements and notices never reach the review queue.
     expect(parseEmail(email({ body: 'Your monthly e-statement is now available.' }))).toBeNull()
+  })
+
+  it('prefers a per-sender parser over generic when it recognises the shape', () => {
+    const result = parseEmail(
+      email({
+        from: 'HSBC@notification.hsbc.com.hk',
+        subject: 'HSBC Credit Card Transaction Notification',
+        body: [
+          'We have recorded the following card-not-present* transaction:',
+          'Credit card number',
+          'Ending with 4321',
+          'Merchant',
+          'APPLE.COM/BILL',
+          'Amount',
+          'HKD18.00',
+        ].join('\n'),
+      }),
+    )
+    expect(result?.parserId).toBe('hsbc-cnp-transaction')
+  })
+
+  it('institutionFromText recognises an institution named in free text', () => {
+    expect(institutionFromText('ZA P (123-456*********)')).toBe('za')
+    expect(institutionFromText('HSBC')).toBe('hsbc')
+    expect(institutionFromText('Mox savings')).toBe('mox')
+  })
+
+  it('institutionFromText refuses to guess when nothing names an institution', () => {
+    expect(institutionFromText('+852-1234***5')).toBeNull()
+    expect(institutionFromText('98XXXX123')).toBeNull()
   })
 })

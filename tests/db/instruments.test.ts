@@ -179,6 +179,7 @@ describe('recordTrade', () => {
     const holdings = computeHoldings(
       legs.rows.map((r) => ({
         instrumentId: id,
+        accountId: brokerageId,
         quantityDelta: r.quantity_delta,
         amountMinor: BigInt(String(r.amount_minor)),
       })),
@@ -237,6 +238,7 @@ describe('recordLegacyPosition', () => {
     const holdings = computeHoldings(
       legs.rows.map((r) => ({
         instrumentId: id,
+        accountId: brokerageId,
         quantityDelta: r.quantity_delta,
         amountMinor: BigInt(String(r.amount_minor)),
       })),

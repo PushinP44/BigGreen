@@ -1,0 +1,8 @@
+Transfer completed
+Hi Alex,
+You've completed the following transaction at 2026-08-15 20:38:29.
+Outgoing Amount：
+HKD 93.00
+Payee: +852-1234***5
+Type: FPS transfer
+You can view your transaction details on the ZA Bank App homepage. If you didn't do this, please contact us and we'll sort it out for you. Thank you!

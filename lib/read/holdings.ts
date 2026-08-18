@@ -20,6 +20,9 @@ import { isCurrency, type Currency } from '@/lib/domain/money'
 
 export interface PricedHolding {
   readonly instrumentId: string
+  readonly accountId: string
+  /** The account's own name — "ZA Invest USD", not the `institution` key. */
+  readonly accountName: string
   readonly symbol: string
   readonly currency: Currency
   /** Decimal string, e.g. "10.5000000000" — display formatting is the caller's job. */
@@ -41,9 +44,9 @@ export interface PricedHolding {
 }
 
 export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> {
-  const [entryRows, instrumentRows, priceRows] = await Promise.all([
-    db.query<{ instrument_id: string; quantity_delta: string; amount_minor: string }>(`
-      SELECT e.instrument_id, e.quantity_delta, e.amount_minor
+  const [entryRows, instrumentRows, accountRows, priceRows] = await Promise.all([
+    db.query<{ instrument_id: string; account_id: string; quantity_delta: string; amount_minor: string }>(`
+      SELECT e.instrument_id, e.account_id, e.quantity_delta, e.amount_minor
         FROM entries e
         JOIN transactions t ON t.id = e.transaction_id
        WHERE e.instrument_id IS NOT NULL AND t.status = 'posted'
@@ -51,6 +54,7 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
     db.query<{ id: string; symbol: string; currency: string }>(
       'SELECT id, symbol, currency FROM instruments',
     ),
+    db.query<{ id: string; name: string }>('SELECT id, name FROM accounts'),
     // Latest price per instrument regardless of source — a fresher manual
     // entry should win over a stale finnhub row and vice versa.
     db.query<{ instrument_id: string; close_minor: string | number; as_of: string }>(`
@@ -62,17 +66,22 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
 
   const holdingEntries: HoldingEntrySnapshot[] = entryRows.rows.map((row) => ({
     instrumentId: row.instrument_id,
+    accountId: row.account_id,
     quantityDelta: row.quantity_delta,
     amountMinor: BigInt(row.amount_minor),
   }))
 
   const instrumentById = new Map(instrumentRows.rows.map((row) => [row.id, row]))
+  const accountById = new Map(accountRows.rows.map((row) => [row.id, row]))
   const priceById = new Map(priceRows.rows.map((row) => [row.instrument_id, row]))
 
   const priced: PricedHolding[] = []
   for (const holding of computeHoldings(holdingEntries)) {
     const instrument = instrumentById.get(holding.instrumentId)
     if (!instrument) continue // orphaned entry — should not happen, don't crash the dashboard over it
+
+    const account = accountById.get(holding.accountId)
+    if (!account) continue // same guard, for a position on an account that's since been removed
 
     const currency = instrument.currency.trim()
     if (!isCurrency(currency)) continue
@@ -92,6 +101,8 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
 
     priced.push({
       instrumentId: holding.instrumentId,
+      accountId: holding.accountId,
+      accountName: account.name,
       symbol: instrument.symbol,
       currency,
       quantity: quantityToString(holding.quantity),
@@ -106,5 +117,5 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
     })
   }
 
-  return priced.sort((a, b) => a.symbol.localeCompare(b.symbol))
+  return priced.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.accountName.localeCompare(b.accountName))
 }

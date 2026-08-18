@@ -1,9 +1,43 @@
 import { createHmac } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ingestEmail, verifySignature } from '@/lib/ingest/email'
 import type { Db } from '@/lib/db/client'
 import type { EmailMessage } from '@/lib/parsers/types'
 import { createTestDb, seedAccounts, USER_A, type SeededAccounts, type TestDb } from '../support/db'
+
+function fixture(name: string): string {
+  return readFileSync(join(process.cwd(), 'tests/fixtures/emails', name), 'utf8')
+}
+
+async function insertAccount(
+  db: Db,
+  opts: {
+    name: string
+    kind: string
+    currency: string
+    institution: string | null
+    last4?: string | null
+    isLiquid?: boolean
+  },
+): Promise<string> {
+  const result = await db.query<{ id: string }>(
+    `INSERT INTO accounts (user_id, name, kind, currency, is_liquid, is_own, institution, account_last4)
+     VALUES ($1, $2, $3::account_kind, $4, $5, true, $6, $7)
+     RETURNING id`,
+    [
+      USER_A,
+      opts.name,
+      opts.kind,
+      opts.currency,
+      opts.isLiquid ?? true,
+      opts.institution,
+      opts.last4 ?? null,
+    ],
+  )
+  return result.rows[0]!.id
+}
 
 let testDb: TestDb
 let db: Db
@@ -225,5 +259,267 @@ describe('ingest', () => {
     // Positive on the card: a refund reduces what you owe.
     expect(entry.rows[0]?.amount_minor).toBe('12000')
     expect(accounts.income).toBeTruthy()
+  })
+})
+
+describe('transfers', () => {
+  it('books a credit-card payment as a real transfer, against both real accounts', async () => {
+    // cardId (institution=hsbc, last4=4321) already exists from the outer
+    // beforeEach; a second HSBC account is what "paid your card" needs on
+    // the other side.
+    const bankId = await insertAccount(db, {
+      name: 'HSBC Everyday',
+      kind: 'bank',
+      currency: 'HKD',
+      institution: 'hsbc',
+    })
+
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'HSBC@notification.hsbc.com.hk',
+        subject: "You've paid your card Ref:[TEST0003]",
+        body: fixture('hsbc-card-payment.txt'),
+      }),
+      { autoPostConfidence: 0.9 },
+    )
+
+    // Both legs resolve, but a transfer never auto-posts at the default bar —
+    // review can only confirm or discard, never correct a wrong account.
+    expect(outcome.kind).toBe('pending')
+
+    const entries = await db.query<{ account_id: string; amount_minor: string }>(
+      `SELECT account_id, amount_minor::text AS amount_minor FROM entries ORDER BY amount_minor::bigint`,
+    )
+    expect(entries.rows).toHaveLength(2)
+    expect(entries.rows).toContainEqual({ account_id: bankId, amount_minor: '-400000' })
+    expect(entries.rows).toContainEqual({ account_id: cardId, amount_minor: '400000' })
+
+    const total = await db.query<{ total: string }>(
+      'SELECT COALESCE(SUM(amount_hkd_minor), 0)::text AS total FROM entries',
+    )
+    expect(BigInt(total.rows[0]!.total)).toBe(0n)
+  })
+
+  it('refuses to guess the source account when only the card itself exists', async () => {
+    // No second HSBC account this time — nothing for "HSBC" (the only fact
+    // the notice gives about the source) to resolve to.
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'HSBC@notification.hsbc.com.hk',
+        subject: "You've paid your card Ref:[TEST0003]",
+        body: fixture('hsbc-card-payment.txt'),
+      }),
+    )
+    expect(outcome.kind).toBe('unparsed')
+
+    const count = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM transactions')
+    expect(count.rows[0]!.n).toBe(0)
+  })
+
+  it('never guesses a same-institution counterparty for an opaque proxy/phone number', async () => {
+    await insertAccount(db, { name: 'HSBC Everyday', kind: 'bank', currency: 'HKD', institution: 'hsbc' })
+
+    // "Payee account / FPS proxy: 98XXXX123" names no institution at all —
+    // guessing it must be another HSBC account would misfile an ordinary
+    // payment to a friend as a self-transfer.
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'HSBC@notification.hsbc.com.hk',
+        subject: 'Successful payment transfer Ref:[TEST0004]',
+        body: fixture('hsbc-payment-transfer.txt'),
+      }),
+    )
+    expect(outcome.kind).toBe('unparsed')
+  })
+
+  it('resolves a transfer to an institution named in the payee label (Mox -> ZA)', async () => {
+    const moxId = await insertAccount(db, { name: 'Mox HKD', kind: 'bank', currency: 'HKD', institution: 'mox' })
+    const zaId = await insertAccount(db, { name: 'ZA HKD', kind: 'bank', currency: 'HKD', institution: 'za' })
+
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'Mox <notify@mox.com>',
+        subject: 'Money transfer successful',
+        body: fixture('mox-transfer.txt'),
+      }),
+    )
+    expect(outcome.kind).toBe('pending')
+
+    const entries = await db.query<{ account_id: string; amount_minor: string }>(
+      `SELECT account_id, amount_minor::text AS amount_minor FROM entries ORDER BY amount_minor::bigint`,
+    )
+    expect(entries.rows).toContainEqual({ account_id: moxId, amount_minor: '-440000' })
+    expect(entries.rows).toContainEqual({ account_id: zaId, amount_minor: '440000' })
+  })
+
+  it('is idempotent — re-ingesting the same transfer email never doubles it', async () => {
+    await insertAccount(db, { name: 'HSBC Everyday', kind: 'bank', currency: 'HKD', institution: 'hsbc' })
+
+    const msg = email({
+      from: 'HSBC@notification.hsbc.com.hk',
+      subject: "You've paid your card Ref:[TEST0003]",
+      body: fixture('hsbc-card-payment.txt'),
+    })
+
+    const first = await ingestEmail(db, msg)
+    const second = await ingestEmail(db, msg)
+    expect(first.kind).toBe('pending')
+    expect(second.kind).toBe('duplicate')
+
+    const count = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM transactions')
+    expect(count.rows[0]!.n).toBe(1)
+  })
+})
+
+describe('trades', () => {
+  it('creates a new instrument on a first-ever trade and books both legs on the brokerage account', async () => {
+    const brokerageId = await insertAccount(db, {
+      name: 'ZA Invest USD',
+      kind: 'brokerage',
+      currency: 'USD',
+      institution: 'za',
+      isLiquid: false,
+    })
+    await db.query(
+      `INSERT INTO fx_rates (user_id, base, quote, as_of, rate, source)
+       VALUES ($1, 'USD', 'HKD', '2026-08-13', 7.8, 'manual')`,
+      [USER_A],
+    )
+
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'ZA Bank <notification@service.bank.za.group>',
+        subject: 'Fully executed - Buy order of GRAB (Grab Holdings)',
+        body: fixture('za-trade-buy.txt'),
+      }),
+      { autoPostConfidence: 0.9 },
+    )
+
+    // A brand-new instrument, and an account resolved only by institution
+    // (no last-4 is ever given for a brokerage alert) — both keep this below
+    // the default auto-post bar.
+    expect(outcome.kind).toBe('pending')
+
+    const instruments = await db.query<{ id: string; symbol: string; kind: string; currency: string }>(
+      `SELECT id, symbol, kind::text AS kind, currency FROM instruments`,
+    )
+    expect(instruments.rows).toHaveLength(1)
+    expect(instruments.rows[0]).toMatchObject({ symbol: 'GRAB', kind: 'stock', currency: 'USD' })
+    const instrumentId = instruments.rows[0]!.id
+
+    const entries = await db.query<{
+      amount_minor: string
+      instrument_id: string | null
+      quantity_delta: string | null
+    }>(
+      `SELECT amount_minor::text AS amount_minor, instrument_id, quantity_delta::text AS quantity_delta
+         FROM entries WHERE account_id = $1 ORDER BY amount_minor::bigint`,
+      [brokerageId],
+    )
+    expect(entries.rows).toHaveLength(2)
+    // Cash leg: -10830 (USD108.30 = 30 shares @ USD3.6100, computed since ZA
+    // never states a total). Instrument leg: the mirrored positive amount,
+    // carrying the position.
+    expect(entries.rows[0]).toMatchObject({ amount_minor: '-10830', instrument_id: null })
+    expect(entries.rows[1]).toMatchObject({
+      amount_minor: '10830',
+      instrument_id: instrumentId,
+      quantity_delta: '30.0000000000',
+    })
+
+    // The account's own balance nets to zero — cash converted into a
+    // position, no new money entered.
+    const total = await db.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount_minor), 0)::text AS total FROM entries WHERE account_id = $1`,
+      [brokerageId],
+    )
+    expect(BigInt(total.rows[0]!.total)).toBe(0n)
+  })
+
+  it('matches an existing instrument by symbol rather than creating a duplicate', async () => {
+    await insertAccount(db, {
+      name: 'ZA Invest USD',
+      kind: 'brokerage',
+      currency: 'USD',
+      institution: 'za',
+      isLiquid: false,
+    })
+    const existing = await db.query<{ id: string }>(
+      `INSERT INTO instruments (user_id, symbol, kind, currency) VALUES ($1, 'GRAB', 'stock', 'USD') RETURNING id`,
+      [USER_A],
+    )
+    const existingId = existing.rows[0]!.id
+    await db.query(
+      `INSERT INTO fx_rates (user_id, base, quote, as_of, rate, source)
+       VALUES ($1, 'USD', 'HKD', '2026-08-13', 7.8, 'manual')`,
+      [USER_A],
+    )
+
+    await ingestEmail(
+      db,
+      email({
+        from: 'ZA Bank <notification@service.bank.za.group>',
+        subject: 'Fully executed - Buy order of GRAB (Grab Holdings)',
+        body: fixture('za-trade-buy.txt'),
+      }),
+    )
+
+    const instruments = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM instruments')
+    expect(instruments.rows[0]!.n).toBe(1)
+
+    const linked = await db.query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM entries WHERE instrument_id = $1',
+      [existingId],
+    )
+    expect(linked.rows[0]!.n).toBe(1)
+  })
+
+  it('refuses to trade against an account it cannot identify', async () => {
+    // No ZA brokerage account seeded at all.
+    const outcome = await ingestEmail(
+      db,
+      email({
+        from: 'ZA Bank <notification@service.bank.za.group>',
+        subject: 'Fully executed - Buy order of GRAB (Grab Holdings)',
+        body: fixture('za-trade-buy.txt'),
+      }),
+    )
+    expect(outcome.kind).toBe('unparsed')
+
+    const instruments = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM instruments')
+    expect(instruments.rows[0]!.n).toBe(0)
+  })
+
+  it('records a sell using the stated total, not a computed one', async () => {
+    const brokerageId = await insertAccount(db, {
+      name: 'Mox Invest HKD',
+      kind: 'brokerage',
+      currency: 'HKD',
+      institution: 'mox',
+      isLiquid: false,
+    })
+
+    await ingestEmail(
+      db,
+      email({
+        from: 'Mox <notify@mox.com>',
+        subject: 'Sell executed',
+        body: fixture('mox-trade-sell.txt'),
+      }),
+    )
+
+    const entries = await db.query<{ amount_minor: string; quantity_delta: string | null }>(
+      `SELECT amount_minor::text AS amount_minor, quantity_delta::text AS quantity_delta
+         FROM entries WHERE account_id = $1 ORDER BY amount_minor::bigint`,
+      [brokerageId],
+    )
+    // Proceeds of HKD4,502.16 in, a -400 unit position leg out.
+    expect(entries.rows).toContainEqual({ amount_minor: '450216', quantity_delta: null })
+    expect(entries.rows.some((r) => r.quantity_delta === '-400.0000000000')).toBe(true)
   })
 })
