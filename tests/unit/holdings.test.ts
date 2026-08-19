@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import {
+  computeAllocations,
   computeHoldings,
   multiplyQuantityByPriceMinor,
   parseQuantity,
   percentChange,
   priceToAmountMinor,
   quantityToString,
+  type AllocationInput,
   type HoldingEntrySnapshot,
 } from '@/lib/domain/holdings'
 
@@ -236,5 +238,77 @@ describe('percentChange', () => {
 
   it('is null rather than dividing by zero when the cost basis is exactly zero', () => {
     expect(percentChange(0n, 100n)).toBeNull()
+  })
+})
+
+function allocationInput(
+  instrumentId: string,
+  accountId: string,
+  valueHkdMinor: bigint | null,
+): AllocationInput {
+  return { instrumentId, accountId, valueHkdMinor }
+}
+
+describe('computeAllocations', () => {
+  it('gives a single position 100% of the total', () => {
+    const shares = computeAllocations([allocationInput('aapl', 'za', 100000n)])
+    expect(shares).toHaveLength(1)
+    expect(shares[0]?.percent).toBe(100)
+  })
+
+  it('splits two positions proportionally to their HKD value', () => {
+    const shares = computeAllocations([
+      allocationInput('aapl', 'za', 300000n), // 75%
+      allocationInput('voo', 'za', 100000n), // 25%
+    ])
+    const byId = new Map(shares.map((s) => [s.instrumentId, s.percent]))
+    expect(byId.get('aapl')).toBeCloseTo(75, 10)
+    expect(byId.get('voo')).toBeCloseTo(25, 10)
+  })
+
+  it('excludes an unpriced position from both the numerator and the denominator', () => {
+    // The naive-but-wrong implementation counts a null as zero, which
+    // shrinks every OTHER position's percentage instead of shrinking the
+    // total — this asserts the priced position still reads 100%, not some
+    // fraction diluted by a position with no price at all.
+    const shares = computeAllocations([
+      allocationInput('aapl', 'za', 100000n),
+      allocationInput('grab', 'za', null),
+    ])
+    expect(shares).toHaveLength(1)
+    expect(shares[0]).toMatchObject({ instrumentId: 'aapl', percent: 100 })
+  })
+
+  it('returns an empty array when every position is unpriced', () => {
+    expect(computeAllocations([allocationInput('aapl', 'za', null)])).toEqual([])
+  })
+
+  it('returns an empty array for no positions', () => {
+    expect(computeAllocations([])).toEqual([])
+  })
+
+  it('keeps the same instrument in two accounts as two independent shares', () => {
+    const shares = computeAllocations([
+      allocationInput('aapl', 'za', 100000n),
+      allocationInput('aapl', 'mox', 100000n),
+    ])
+    expect(shares).toHaveLength(2)
+    for (const share of shares) expect(share.percent).toBeCloseTo(50, 10)
+  })
+
+  it('priced positions always sum to 100%, regardless of how many or their split', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.bigInt({ min: 1n, max: 10n ** 12n }), { minLength: 1, maxLength: 20 }),
+        (values) => {
+          const shares = computeAllocations(
+            values.map((v, i) => allocationInput(`i${i}`, 'za', v)),
+          )
+          const total = shares.reduce((sum, s) => sum + s.percent, 0)
+          expect(total).toBeCloseTo(100, 6)
+        },
+      ),
+      { numRuns: 200 },
+    )
   })
 })
