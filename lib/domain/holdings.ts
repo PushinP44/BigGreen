@@ -128,6 +128,48 @@ export function percentChange(
   return (Number(currentValueMinor - costBasisMinor) / Number(costBasisMinor)) * 100
 }
 
+export interface AllocationInput {
+  readonly instrumentId: string
+  readonly accountId: string
+  /** Market value blended to HKD by the caller. Null means no live price yet. */
+  readonly valueHkdMinor: bigint | null
+}
+
+export interface AllocationShare {
+  readonly instrumentId: string
+  readonly accountId: string
+  readonly valueHkdMinor: bigint
+  readonly percent: number
+}
+
+/**
+ * Each position's share of total portfolio value, blended to HKD — the one
+ * deliberate place positions are compared across currencies, since
+ * concentration risk does not care what currency a position happens to be
+ * priced in. This is unlike the pool cards and net-worth chart, which never
+ * blend currencies on purpose (PLAN rev 4) because those answer "what can I
+ * spend"; this answers "how much of what I hold is this one position."
+ *
+ * A position with no live price yet is excluded from both the numerator and
+ * the denominator, not counted as zero — otherwise one stale price would
+ * silently shrink every OTHER position's percentage instead of shrinking the
+ * total. Same display-only-ratio convention as `percentChange`: a plain
+ * `number`, never summed, stored, or compared for equality.
+ */
+export function computeAllocations(positions: readonly AllocationInput[]): AllocationShare[] {
+  const priced = positions.filter(
+    (p): p is AllocationInput & { valueHkdMinor: bigint } => p.valueHkdMinor !== null,
+  )
+  const total = priced.reduce((sum, p) => sum + p.valueHkdMinor, 0n)
+
+  return priced.map((p) => ({
+    instrumentId: p.instrumentId,
+    accountId: p.accountId,
+    valueHkdMinor: p.valueHkdMinor,
+    percent: total > 0n ? (Number(p.valueHkdMinor) / Number(total)) * 100 : 0,
+  }))
+}
+
 export interface HoldingEntrySnapshot {
   readonly instrumentId: string
   /** Which account holds this leg — GRAB in ZA and GRAB in IBKR are different positions. */

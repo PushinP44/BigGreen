@@ -1,8 +1,11 @@
 import Link from 'next/link'
 import { requireSessionDb } from '@/lib/db/session'
-import { listAccountBalances } from '@/lib/read/accounts'
+import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
 import { loadHoldings } from '@/lib/read/holdings'
+import { computeAllocations } from '@/lib/domain/holdings'
+import { convert, money, parseRate } from '@/lib/domain/money'
 import { HoldingsTable } from '../holdings-table'
+import { AllocationBreakdown, type AllocationRow } from './allocation'
 import { InstrumentForm } from './instrument-form'
 import { PositionForm } from './position-form'
 import { WeightInput } from './weight-input'
@@ -29,13 +32,14 @@ export default async function PortfolioPage() {
   // never read the clock themselves (PLAN D4).
   const now = new Date()
 
-  const [instrumentRows, accounts, holdings] = await Promise.all([
+  const [instrumentRows, accounts, holdings, rates] = await Promise.all([
     db.query<InstrumentRow>(
       `SELECT id, symbol, kind::text AS kind, currency, target_weight_bps
          FROM instruments ORDER BY symbol`,
     ),
     listAccountBalances(db),
     loadHoldings(db, now),
+    rateTableFor(db),
   ])
 
   const instruments = instrumentRows.rows.map((row) => ({
@@ -50,6 +54,37 @@ export default async function PortfolioPage() {
 
   const totalWeightPercent =
     instruments.reduce((sum, i) => sum + (i.targetWeightBps ?? 0), 0) / 100
+
+  // Blended to HKD only here — concentration risk does not care what
+  // currency a position is priced in, unlike the pool cards and net-worth
+  // chart, which never blend (PLAN rev 4). No stored rate for a currency
+  // means "no live price" for allocation purposes too: an unconverted
+  // number would misstate every other position's share, not just this one.
+  const valueHkdMinorOf = (holding: (typeof holdings)[number]): bigint | null => {
+    if (holding.marketValueMinor === null) return null
+    if (holding.currency === 'HKD') return holding.marketValueMinor
+    const rateText = rates[holding.currency]
+    if (rateText === undefined) return null
+    return convert(money(holding.marketValueMinor, holding.currency), 'HKD', parseRate(rateText))
+      .amountMinor
+  }
+
+  const allocations = computeAllocations(
+    holdings.map((h) => ({
+      instrumentId: h.instrumentId,
+      accountId: h.accountId,
+      valueHkdMinor: valueHkdMinorOf(h),
+    })),
+  )
+  const accountNameById = new Map(holdings.map((h) => [h.accountId, h.accountName]))
+  const symbolByInstrumentId = new Map(holdings.map((h) => [h.instrumentId, h.symbol]))
+  const allocationRows: AllocationRow[] = allocations.map((a) => ({
+    instrumentId: a.instrumentId,
+    accountId: a.accountId,
+    symbol: symbolByInstrumentId.get(a.instrumentId) ?? a.instrumentId,
+    accountName: accountNameById.get(a.accountId) ?? a.accountId,
+    percent: a.percent,
+  }))
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12">
@@ -73,6 +108,21 @@ export default async function PortfolioPage() {
           Holdings
         </h2>
         <HoldingsTable holdings={holdings} />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          Allocation
+        </h2>
+        <p className="text-xs text-(--color-muted)">
+          Share of total investment value, blended to HKD at the current rate — the one number
+          worth comparing across currencies, since concentration risk does not care which one a
+          position is priced in.
+        </p>
+        <AllocationBreakdown
+          rows={allocationRows}
+          excludedCount={holdings.length - allocationRows.length}
+        />
       </section>
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
