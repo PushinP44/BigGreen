@@ -119,3 +119,111 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
 
   return priced.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.accountName.localeCompare(b.accountName))
 }
+
+export interface RecentPosition {
+  readonly transactionId: string
+  readonly occurredAt: Date
+  readonly description: string | null
+  /** 'legacy' is told apart from 'buy' by its counterparty: Opening Equity, not the position's own account. */
+  readonly mode: 'buy' | 'sell' | 'legacy'
+  readonly symbol: string
+  readonly accountName: string
+  /** Signed decimal string — negative is a sell, same as the entry it came from. */
+  readonly quantity: string
+  readonly amountMinor: bigint
+  readonly currency: Currency
+}
+
+/**
+ * The last `limit` buy/sell/legacy transactions, newest first — what a
+ * "remove this, I mis-typed it" flow needs to show. Never edited in place:
+ * removing one sets `status = 'void'` (same convention as `/review`'s
+ * discard), so the audit trail survives and `loadHoldings`'s `status =
+ * 'posted'` filter drops it from every position/allocation figure on its own.
+ *
+ * Fetches every entry on each of the `limit` most-recent trade-touching
+ * transactions (via the `recent` CTE) rather than filtering entries directly
+ * with a bare `LIMIT` — the latter would cut a transaction off after just one
+ * of its two legs, silently corrupting the mode/quantity derivation below.
+ */
+export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPosition[]> {
+  const legRows = await db.query<{
+    transaction_id: string
+    occurred_at: string
+    description: string | null
+    account_id: string
+    instrument_id: string | null
+    quantity_delta: string | null
+    amount_minor: string
+    currency: string
+  }>(
+    `WITH recent AS (
+       SELECT DISTINCT t.id, t.occurred_at
+         FROM transactions t
+         JOIN entries e ON e.transaction_id = t.id
+        WHERE t.status = 'posted' AND e.instrument_id IS NOT NULL
+        ORDER BY t.occurred_at DESC
+        LIMIT $1
+     )
+     SELECT e.transaction_id, r.occurred_at::text AS occurred_at, t.description,
+            e.account_id, e.instrument_id, e.quantity_delta,
+            e.amount_minor::text AS amount_minor, e.currency
+       FROM entries e
+       JOIN recent r ON r.id = e.transaction_id
+       JOIN transactions t ON t.id = e.transaction_id
+      ORDER BY r.occurred_at DESC`,
+    [limit],
+  )
+
+  const [accountRows, instrumentRows] = await Promise.all([
+    db.query<{ id: string; name: string; system_role: string | null }>(
+      'SELECT id, name, system_role FROM accounts',
+    ),
+    db.query<{ id: string; symbol: string }>('SELECT id, symbol FROM instruments'),
+  ])
+  const accountById = new Map(accountRows.rows.map((row) => [row.id, row]))
+  const symbolById = new Map(instrumentRows.rows.map((row) => [row.id, row.symbol]))
+
+  const legsByTransaction = new Map<string, typeof legRows.rows>()
+  for (const leg of legRows.rows) {
+    const list = legsByTransaction.get(leg.transaction_id) ?? []
+    list.push(leg)
+    legsByTransaction.set(leg.transaction_id, list)
+  }
+
+  const positions: RecentPosition[] = []
+  for (const legs of legsByTransaction.values()) {
+    const instrumentLeg = legs.find((leg) => leg.instrument_id !== null && leg.quantity_delta !== null)
+    if (!instrumentLeg?.instrument_id || !instrumentLeg.quantity_delta) continue
+
+    const currency = instrumentLeg.currency.trim()
+    if (!isCurrency(currency)) continue
+
+    const symbol = symbolById.get(instrumentLeg.instrument_id)
+    const account = accountById.get(instrumentLeg.account_id)
+    if (!symbol || !account) continue // orphaned entry — should not happen, don't crash the page over it
+
+    const cashLeg = legs.find((leg) => leg.instrument_id === null)
+    const cashAccount = cashLeg ? accountById.get(cashLeg.account_id) : undefined
+    const isSell = instrumentLeg.quantity_delta.startsWith('-')
+    const mode: RecentPosition['mode'] = isSell
+      ? 'sell'
+      : cashAccount?.system_role === 'opening_equity'
+        ? 'legacy'
+        : 'buy'
+
+    positions.push({
+      transactionId: instrumentLeg.transaction_id,
+      occurredAt: new Date(instrumentLeg.occurred_at),
+      description: instrumentLeg.description,
+      mode,
+      symbol,
+      accountName: account.name,
+      quantity: instrumentLeg.quantity_delta,
+      amountMinor: BigInt(instrumentLeg.amount_minor),
+      currency,
+    })
+  }
+
+  return positions.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
+}

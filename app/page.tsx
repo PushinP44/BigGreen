@@ -14,7 +14,7 @@ import {
   type CurrencyPool,
 } from '@/lib/domain/balances'
 import { APP_TIMEZONE, addDays, monthInterval, toLocalDate, zonedParts } from '@/lib/domain/clock'
-import { formatMoney, money, type Currency } from '@/lib/domain/money'
+import { formatMoney, money, toHkdMinor, type Currency } from '@/lib/domain/money'
 import { safetyTerms, termsToJson, type PoolTerms } from '@/lib/domain/safety'
 import type { CardPosition } from '@/lib/domain/credit'
 import {
@@ -36,9 +36,13 @@ import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
 import { loadHoldings } from '@/lib/read/holdings'
 import { countPendingSuggestions } from '@/lib/read/allocations'
 import { NetWorthChart, type NetWorthPoint } from './charts/net-worth-chart'
+import { TopHoldingsChart, type TopHoldingPoint } from './charts/top-holdings-chart'
+import { TopMoversChart, type MoverPoint } from './charts/top-movers-chart'
 import { EntryForm } from './entry-form'
-import { HoldingsTable } from './holdings-table'
+import { RefreshPrices } from './refresh-prices'
 import { RefreshRates } from './refresh-rates'
+
+const TOP_N = 3
 
 const NET_WORTH_WEEKS = 26
 
@@ -132,6 +136,34 @@ export default async function Home() {
       )
     ).rows[0]?.n ?? 0,
   )
+
+  // Blended to HKD only for ranking across currencies — same one-time
+  // exception as the portfolio page's allocation breakdown (PLAN rev 4
+  // otherwise keeps pools and the net-worth chart above unblended).
+  const pricedHoldings = holdings
+    .map((h) => ({
+      holding: h,
+      valueHkdMinor: h.marketValueMinor === null ? null : toHkdMinor(h.marketValueMinor, h.currency, rates),
+    }))
+    .filter((h): h is { holding: (typeof holdings)[number]; valueHkdMinor: bigint } => h.valueHkdMinor !== null)
+
+  const topHoldings: TopHoldingPoint[] = [...pricedHoldings]
+    .sort((a, b) => (b.valueHkdMinor > a.valueHkdMinor ? 1 : b.valueHkdMinor < a.valueHkdMinor ? -1 : 0))
+    .slice(0, TOP_N)
+    .map((h) => ({ label: h.holding.symbol, valueHkd: Number(h.valueHkdMinor) / Number(minorFactor('HKD')) }))
+
+  const priced = holdings.filter((h) => h.unrealizedPlPercent !== null)
+  const gainers = [...priced]
+    .filter((h) => h.unrealizedPlPercent! >= 0)
+    .sort((a, b) => b.unrealizedPlPercent! - a.unrealizedPlPercent!)
+    .slice(0, TOP_N)
+  const losers = [...priced]
+    .filter((h) => h.unrealizedPlPercent! < 0)
+    .sort((a, b) => a.unrealizedPlPercent! - b.unrealizedPlPercent!)
+    .slice(0, TOP_N)
+  const topMovers: MoverPoint[] = [...losers, ...gainers]
+    .sort((a, b) => a.unrealizedPlPercent! - b.unrealizedPlPercent!)
+    .map((h) => ({ label: h.symbol, percent: h.unrealizedPlPercent! }))
 
   const ownAccounts = accounts.filter((a) => a.isOwn)
   const monthLabel = new Intl.DateTimeFormat('en-GB', {
@@ -345,9 +377,40 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className={sectionHeading}>Holdings</h2>
-        <HoldingsTable holdings={holdings} />
+      <section className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className={sectionHeading}>Holdings</h2>
+          <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+            Full breakdown →
+          </Link>
+        </div>
+        {holdings.length === 0 ? (
+          <p className="text-sm text-(--color-muted)">No positions yet.</p>
+        ) : pricedHoldings.length === 0 ? (
+          <p className="text-sm text-(--color-muted)">
+            No live prices yet — refresh prices to see your top holdings and movers.
+          </p>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs uppercase tracking-wide text-(--color-muted)">
+                Top {TOP_N} by value
+              </h3>
+              <TopHoldingsChart data={topHoldings} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs uppercase tracking-wide text-(--color-muted)">
+                Top movers
+              </h3>
+              {topMovers.length === 0 ? (
+                <p className="text-sm text-(--color-muted)">Nothing priced enough to compare yet.</p>
+              ) : (
+                <TopMoversChart data={topMovers} />
+              )}
+            </div>
+          </div>
+        )}
+        <RefreshPrices />
       </section>
 
       <section className="flex flex-col gap-3">

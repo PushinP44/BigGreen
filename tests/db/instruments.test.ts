@@ -4,8 +4,10 @@ import {
   recordLegacyPosition,
   recordTrade,
   setInstrumentWeight,
+  voidPosition,
 } from '@/lib/ledger/instruments'
 import { computeHoldings } from '@/lib/domain/holdings'
+import { listRecentPositions } from '@/lib/read/holdings'
 import type { Db } from '@/lib/db/client'
 import { createTestDb, seedAccounts, USER_A, type TestDb } from '../support/db'
 
@@ -245,5 +247,156 @@ describe('recordLegacyPosition', () => {
     )
     expect(holdings[0]?.quantity.scaled).toBeGreaterThan(0n)
     expect(holdings[0]?.avgCostMinor).toBeNull()
+  })
+})
+
+describe('voidPosition', () => {
+  it('voids a posted trade, which drops it out of posted-only reads', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    const { transactionId } = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '10',
+      amount: '1500.00',
+      description: '',
+    })
+
+    expect(await voidPosition(db, transactionId)).toBe(true)
+
+    const row = await db.query<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [
+      transactionId,
+    ])
+    expect(row.rows[0]?.status).toBe('void')
+  })
+
+  it('is not fooled twice — voiding an already-void transaction reports nothing to do', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    const { transactionId } = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '10',
+      amount: '1500.00',
+      description: '',
+    })
+
+    expect(await voidPosition(db, transactionId)).toBe(true)
+    expect(await voidPosition(db, transactionId)).toBe(false)
+  })
+
+  it('refuses to void a transaction that is not a position at all', async () => {
+    // A plain two-leg spend, no instrument_id anywhere — the shape voidPosition
+    // must never touch, since this action is reachable from the portfolio page
+    // and must not become a back door for discarding an unrelated transaction.
+    // Which two accounts carry the legs is irrelevant to what's being proven,
+    // so the already-seeded brokerage/equity accounts stand in rather than
+    // seeding a second, colliding set via seedAccounts.
+    // The double-entry constraint trigger is deferred to commit, so both
+    // inserts must land in one transaction — two separate auto-committing
+    // statements would trip it after the first entry alone.
+    const transactionId = crypto.randomUUID()
+    await db.transaction(async (tx) => {
+      await tx.query(
+        `INSERT INTO transactions (id, user_id, occurred_at, status, description, source)
+         VALUES ($1, $2, now(), 'posted', 'Coffee', 'manual')`,
+        [transactionId, USER_A],
+      )
+      for (const [accountId, amountMinor] of [
+        [brokerageId, '-3800'],
+        [openingEquityId, '3800'],
+      ] as const) {
+        await tx.query(
+          `INSERT INTO entries
+             (user_id, transaction_id, account_id, amount_minor, currency,
+              fx_rate_to_hkd, amount_hkd_minor, is_fx_residual)
+           VALUES ($1, $2, $3, $4, 'HKD', 1, $4, false)`,
+          [USER_A, transactionId, accountId, amountMinor],
+        )
+      }
+    })
+
+    expect(await voidPosition(db, transactionId)).toBe(false)
+    const row = await db.query<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [
+      transactionId,
+    ])
+    expect(row.rows[0]?.status).toBe('posted') // untouched
+  })
+})
+
+describe('listRecentPositions', () => {
+  it('tells buy, sell and legacy apart', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '10',
+      amount: '1500.00',
+      description: 'Initial buy',
+    })
+    await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'sell',
+      quantity: '4',
+      amount: '680.00',
+      description: 'Partial sell',
+    })
+    await recordLegacyPosition(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      quantity: '5',
+      costMinor: 200000n,
+      description: 'Legacy add',
+    })
+
+    const positions = await listRecentPositions(db)
+    const byDescription = new Map(positions.map((p) => [p.description, p]))
+    expect(byDescription.get('Initial buy')?.mode).toBe('buy')
+    expect(byDescription.get('Partial sell')?.mode).toBe('sell')
+    expect(byDescription.get('Partial sell')?.quantity.startsWith('-')).toBe(true)
+    expect(byDescription.get('Legacy add')?.mode).toBe('legacy')
+  })
+
+  it('excludes a voided position', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    const { transactionId } = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '10',
+      amount: '1500.00',
+      description: 'Typo buy',
+    })
+
+    expect(await listRecentPositions(db)).toHaveLength(1)
+    await voidPosition(db, transactionId)
+    expect(await listRecentPositions(db)).toHaveLength(0)
+  })
+
+  it('orders newest first', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '1',
+      amount: '150.00',
+      description: 'Older',
+      occurredAt: new Date('2026-01-01T00:00:00Z'),
+    })
+    await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '1',
+      amount: '150.00',
+      description: 'Newer',
+      occurredAt: new Date('2026-02-01T00:00:00Z'),
+    })
+
+    const positions = await listRecentPositions(db)
+    expect(positions.map((p) => p.description)).toEqual(['Newer', 'Older'])
   })
 })
