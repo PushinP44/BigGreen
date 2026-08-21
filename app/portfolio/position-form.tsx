@@ -30,6 +30,7 @@ export interface InstrumentOption {
 export interface AccountOption {
   readonly id: string
   readonly name: string
+  readonly currency: string
 }
 
 /**
@@ -115,7 +116,7 @@ export function PositionForm({
             <select name="accountId" required className={field} defaultValue={accounts[0]?.id ?? ''}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name}
+                  {a.name} · {a.currency}
                 </option>
               ))}
             </select>
@@ -173,7 +174,7 @@ export function PositionForm({
             <select name="accountId" required className={field} defaultValue={accounts[0]?.id ?? ''}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name}
+                  {a.name} · {a.currency}
                 </option>
               ))}
             </select>

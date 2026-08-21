@@ -232,6 +232,27 @@ async function writeTransaction(
   return { transactionId }
 }
 
+/**
+ * Voids a mis-entered buy/sell/legacy position — same convention as
+ * `/review`'s discard: never a delete, never an in-place edit of a posted
+ * entry's amount, which risks leaving that transaction's legs out of
+ * balance. Scoped to transactions that actually carry an instrument leg, so
+ * this cannot be pointed at an unrelated spend or transfer.
+ *
+ * Returns false when there was nothing to void — already voided, or not a
+ * position at all — so the caller can say so rather than reporting success.
+ */
+export async function voidPosition(db: Db, transactionId: string): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE transactions
+        SET status = 'void', booked_at = now()
+      WHERE id = $1 AND status = 'posted'
+        AND id IN (SELECT transaction_id FROM entries WHERE instrument_id IS NOT NULL)`,
+    [transactionId],
+  )
+  return (result.affectedRows ?? 0) > 0
+}
+
 async function loadInstrument(
   db: Db,
   instrumentId: string,

@@ -20,6 +20,7 @@ import {
   subtract,
   sum,
   toDecimalString,
+  toHkdMinor,
   toJson,
   zero,
   type Currency,
@@ -197,6 +198,22 @@ describe('convert', () => {
 
   it('maps zero to zero', () => {
     expect(convert(money(0n, 'THB'), 'HKD', parseRate('0.2242')).amountMinor).toBe(0n)
+  })
+})
+
+describe('toHkdMinor', () => {
+  it('passes an HKD amount through unchanged, without needing a rate at all', () => {
+    expect(toHkdMinor(150000n, 'HKD', {})).toBe(150000n)
+  })
+
+  it('converts a foreign amount using the matching rate', () => {
+    // 100.00 USD @ 7.8 = 780.00 HKD
+    expect(toHkdMinor(10000n, 'USD', { USD: '7.8' })).toBe(78000n)
+  })
+
+  it('is null when the rate table has nothing for that currency, rather than guessing', () => {
+    expect(toHkdMinor(10000n, 'USD', {})).toBeNull()
+    expect(toHkdMinor(10000n, 'USD', { THB: '0.2242' })).toBeNull()
   })
 })
 

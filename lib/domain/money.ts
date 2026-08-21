@@ -233,6 +233,26 @@ export function convert(from: Money, to: Currency, rate: Rate): Money {
   return { amountMinor: divRoundHalfEven(numerator, denominator), currency: to }
 }
 
+/**
+ * An amount converted to HKD using a live rate table (currency → HKD rate,
+ * as decimal strings — the shape `rateTableFor` returns), or null when
+ * there's no rate on record for that currency rather than guessing.
+ *
+ * Unlike an entry's `amountHkdMinor`, which is frozen at the entry's own
+ * event time (PLAN D2), this always uses today's rate — right for a live
+ * figure like a holding's current market value, wrong for a historical fact.
+ */
+export function toHkdMinor(
+  amountMinor: bigint,
+  currency: Currency,
+  rates: Readonly<Record<string, string>>,
+): bigint | null {
+  if (currency === BASE_CURRENCY) return amountMinor
+  const rateText = rates[currency]
+  if (rateText === undefined) return null
+  return convert(money(amountMinor, currency), BASE_CURRENCY, parseRate(rateText)).amountMinor
+}
+
 // ── Parsing and formatting ──────────────────────────────────────────────────
 
 const AMOUNT_PATTERN = /^-?\d*(\.\d*)?$/

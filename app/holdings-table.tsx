@@ -3,7 +3,7 @@ import type { PricedHolding } from '@/lib/read/holdings'
 import { RefreshPrices } from './refresh-prices'
 
 /** Trims a fixed-point decimal string's trailing zeros for display: "10.0000000000" → "10". */
-function formatQuantity(quantity: string): string {
+export function formatQuantity(quantity: string): string {
   if (!quantity.includes('.')) return quantity
   return quantity.replace(/0+$/, '').replace(/\.$/, '')
 }

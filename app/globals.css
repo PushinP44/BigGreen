@@ -5,6 +5,10 @@
   --color-paper: oklch(0.98 0.008 120);
   --color-green: oklch(0.52 0.13 155);
   --color-green-deep: oklch(0.34 0.09 155);
+  /* Same value as Tailwind's red-600 — the loss counterpart to --color-green,
+     for the one spot (top-movers chart) that needs a computed color rather
+     than a `text-red-600 dark:text-red-400` pair, which an SVG fill can't use. */
+  --color-loss: oklch(0.577 0.245 27.325);
   --color-muted: oklch(0.55 0.015 150);
   --color-line: oklch(0.9 0.012 150);
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -32,6 +36,8 @@
     --color-paper: oklch(0.19 0.015 150);
     --color-green: oklch(0.62 0.14 155);
     --color-green-deep: oklch(0.72 0.15 155);
+    /* Tailwind's red-400 — the dark-mode counterpart to --color-loss above. */
+    --color-loss: oklch(0.704 0.191 22.216);
     --color-muted: oklch(0.66 0.015 150);
     --color-line: oklch(0.32 0.015 150);
 

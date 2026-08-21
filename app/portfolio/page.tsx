@@ -1,14 +1,21 @@
 import Link from 'next/link'
 import { requireSessionDb } from '@/lib/db/session'
 import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
-import { loadHoldings } from '@/lib/read/holdings'
+import { loadHoldings, listRecentPositions } from '@/lib/read/holdings'
 import { computeAllocations } from '@/lib/domain/holdings'
-import { convert, money, parseRate } from '@/lib/domain/money'
-import { HoldingsTable } from '../holdings-table'
+import { zonedParts } from '@/lib/domain/clock'
+import { formatMoney, money, toHkdMinor } from '@/lib/domain/money'
+import { HoldingsTable, formatQuantity } from '../holdings-table'
 import { AllocationBreakdown, type AllocationRow } from './allocation'
 import { InstrumentForm } from './instrument-form'
 import { PositionForm } from './position-form'
+import { RecentPositions, type RecentPositionRow } from './recent-positions'
 import { WeightInput } from './weight-input'
+
+function shortDate(date: Date): string {
+  const parts = zonedParts(date)
+  return `${String(parts.day).padStart(2, '0')}/${String(parts.month).padStart(2, '0')}`
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +39,7 @@ export default async function PortfolioPage() {
   // never read the clock themselves (PLAN D4).
   const now = new Date()
 
-  const [instrumentRows, accounts, holdings, rates] = await Promise.all([
+  const [instrumentRows, accounts, holdings, rates, recentPositions] = await Promise.all([
     db.query<InstrumentRow>(
       `SELECT id, symbol, kind::text AS kind, currency, target_weight_bps
          FROM instruments ORDER BY symbol`,
@@ -40,6 +47,7 @@ export default async function PortfolioPage() {
     listAccountBalances(db),
     loadHoldings(db, now),
     rateTableFor(db),
+    listRecentPositions(db),
   ])
 
   const instruments = instrumentRows.rows.map((row) => ({
@@ -50,7 +58,9 @@ export default async function PortfolioPage() {
     targetWeightBps: row.target_weight_bps,
   }))
 
-  const ownAccounts = accounts.filter((a) => a.isOwn).map((a) => ({ id: a.id, name: a.name }))
+  const ownAccounts = accounts
+    .filter((a) => a.isOwn)
+    .map((a) => ({ id: a.id, name: a.name, currency: a.currency }))
 
   const totalWeightPercent =
     instruments.reduce((sum, i) => sum + (i.targetWeightBps ?? 0), 0) / 100
@@ -60,14 +70,10 @@ export default async function PortfolioPage() {
   // chart, which never blend (PLAN rev 4). No stored rate for a currency
   // means "no live price" for allocation purposes too: an unconverted
   // number would misstate every other position's share, not just this one.
-  const valueHkdMinorOf = (holding: (typeof holdings)[number]): bigint | null => {
-    if (holding.marketValueMinor === null) return null
-    if (holding.currency === 'HKD') return holding.marketValueMinor
-    const rateText = rates[holding.currency]
-    if (rateText === undefined) return null
-    return convert(money(holding.marketValueMinor, holding.currency), 'HKD', parseRate(rateText))
-      .amountMinor
-  }
+  const valueHkdMinorOf = (holding: (typeof holdings)[number]): bigint | null =>
+    holding.marketValueMinor === null
+      ? null
+      : toHkdMinor(holding.marketValueMinor, holding.currency, rates)
 
   const allocations = computeAllocations(
     holdings.map((h) => ({
@@ -84,6 +90,17 @@ export default async function PortfolioPage() {
     symbol: symbolByInstrumentId.get(a.instrumentId) ?? a.instrumentId,
     accountName: accountNameById.get(a.accountId) ?? a.accountId,
     percent: a.percent,
+  }))
+
+  const recentPositionRows: RecentPositionRow[] = recentPositions.map((p) => ({
+    transactionId: p.transactionId,
+    date: shortDate(p.occurredAt),
+    mode: p.mode,
+    symbol: p.symbol,
+    accountName: p.accountName,
+    quantity: formatQuantity(p.quantity),
+    amount: formatMoney(money(p.amountMinor, p.currency)),
+    description: p.description,
   }))
 
   return (
@@ -169,6 +186,18 @@ export default async function PortfolioPage() {
           </div>
         )}
         <InstrumentForm />
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          Recent positions
+        </h2>
+        <p className="text-xs text-(--color-muted)">
+          Mis-typed a quantity or amount? Remove it here, then re-enter it correctly below —
+          removing voids the entry rather than editing it in place, so what you actually did stays
+          in the record.
+        </p>
+        <RecentPositions rows={recentPositionRows} />
       </section>
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">

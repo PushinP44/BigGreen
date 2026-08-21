@@ -8,6 +8,7 @@ import {
   recordLegacyPosition,
   recordTrade,
   setInstrumentWeight,
+  voidPosition,
 } from '@/lib/ledger/instruments'
 import { parseAmountInput, type Currency } from '@/lib/domain/money'
 
@@ -161,5 +162,32 @@ export async function recordLegacyPositionAction(
     return { ok: 'Legacy position added.' }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'could not add position' }
+  }
+}
+
+/**
+ * Removes a mis-entered buy/sell/legacy position — voids rather than
+ * deletes or edits in place, same convention as `/review`'s discard: what
+ * you recorded is still something you did, and a straight UPDATE on a
+ * posted entry's amount would risk leaving the transaction's legs out of
+ * balance. Re-enter the correct version with the form above.
+ */
+export async function voidPositionAction(
+  _previous: PortfolioActionState,
+  formData: FormData,
+): Promise<PortfolioActionState> {
+  const transactionId = String(formData.get('transactionId') ?? '')
+  if (!transactionId) return { error: 'missing transaction' }
+
+  try {
+    const { db } = await requireSessionDb()
+    const voided = await voidPosition(db, transactionId)
+    if (!voided) return { error: 'that position is no longer there' }
+
+    revalidatePath('/')
+    revalidatePath('/portfolio')
+    return { ok: 'Removed — re-enter it above with the correct values.' }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'could not remove that' }
   }
 }
