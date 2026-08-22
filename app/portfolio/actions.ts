@@ -85,6 +85,7 @@ const tradeSchema = z.object({
   quantity: z.string().min(1, 'enter a quantity'),
   amount: z.string().min(1, 'enter an amount'),
   description: z.string().max(200).optional(),
+  replacesTransactionId: z.uuid().optional(),
 })
 
 export async function recordTradeAction(
@@ -98,6 +99,7 @@ export async function recordTradeAction(
     quantity: formData.get('quantity'),
     amount: formData.get('amount'),
     description: formData.get('description') ?? undefined,
+    replacesTransactionId: formData.get('replacesTransactionId') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'invalid input' }
 
@@ -110,10 +112,17 @@ export async function recordTradeAction(
       quantity: parsed.data.quantity,
       amount: parsed.data.amount,
       description: parsed.data.description ?? '',
+      replacesTransactionId: parsed.data.replacesTransactionId,
     })
     revalidatePath('/')
     revalidatePath('/portfolio')
-    return { ok: parsed.data.side === 'buy' ? 'Buy recorded.' : 'Sale recorded.' }
+    return {
+      ok: parsed.data.replacesTransactionId
+        ? 'Saved.'
+        : parsed.data.side === 'buy'
+          ? 'Buy recorded.'
+          : 'Sale recorded.',
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'could not record trade' }
   }
@@ -126,6 +135,7 @@ const legacySchema = z.object({
   costMinor: z.string().optional(),
   currency: z.enum(['HKD', 'USD', 'THB']),
   description: z.string().max(200).optional(),
+  replacesTransactionId: z.uuid().optional(),
 })
 
 export async function recordLegacyPositionAction(
@@ -139,6 +149,7 @@ export async function recordLegacyPositionAction(
     costMinor: formData.get('cost') || undefined,
     currency: formData.get('currency'),
     description: formData.get('description') ?? undefined,
+    replacesTransactionId: formData.get('replacesTransactionId') || undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'invalid input' }
 
@@ -156,10 +167,11 @@ export async function recordLegacyPositionAction(
       quantity: parsed.data.quantity,
       costMinor,
       description: parsed.data.description ?? '',
+      replacesTransactionId: parsed.data.replacesTransactionId,
     })
     revalidatePath('/')
     revalidatePath('/portfolio')
-    return { ok: 'Legacy position added.' }
+    return { ok: parsed.data.replacesTransactionId ? 'Saved.' : 'Legacy position added.' }
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'could not add position' }
   }
