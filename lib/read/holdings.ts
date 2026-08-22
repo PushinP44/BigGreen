@@ -126,7 +126,9 @@ export interface RecentPosition {
   readonly description: string | null
   /** 'legacy' is told apart from 'buy' by its counterparty: Opening Equity, not the position's own account. */
   readonly mode: 'buy' | 'sell' | 'legacy'
+  readonly instrumentId: string
   readonly symbol: string
+  readonly accountId: string
   readonly accountName: string
   /** Signed decimal string — negative is a sell, same as the entry it came from. */
   readonly quantity: string
@@ -217,7 +219,9 @@ export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPos
       occurredAt: new Date(instrumentLeg.occurred_at),
       description: instrumentLeg.description,
       mode,
+      instrumentId: instrumentLeg.instrument_id,
       symbol,
+      accountId: instrumentLeg.account_id,
       accountName: account.name,
       quantity: instrumentLeg.quantity_delta,
       amountMinor: BigInt(instrumentLeg.amount_minor),

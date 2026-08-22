@@ -93,6 +93,14 @@ export interface RecordTradeInput {
   readonly amount: string
   readonly description: string
   readonly occurredAt?: Date
+  /**
+   * An existing position this one corrects — voided before the new one is
+   * written, so editing still never mutates a posted entry's amount in
+   * place (same discipline as `voidPosition`). Best-effort: if it's already
+   * gone (raced, already fixed elsewhere), the corrected value still gets
+   * recorded rather than blocking on a void that no longer has anything to do.
+   */
+  readonly replacesTransactionId?: string
 }
 
 export async function recordTrade(db: Db, input: RecordTradeInput): Promise<RecordResult> {
@@ -126,6 +134,8 @@ export async function recordTrade(db: Db, input: RecordTradeInput): Promise<Reco
     },
   ]
 
+  if (input.replacesTransactionId) await voidPosition(db, input.replacesTransactionId)
+
   const balanced = balanceEntries(inputs, { fxRoundingAccountId })
   return writeTransaction(db, balanced.entries, input.description, input.occurredAt)
 }
@@ -138,6 +148,8 @@ export interface RecordLegacyPositionInput {
   readonly costMinor?: bigint | null
   readonly description: string
   readonly occurredAt?: Date
+  /** Same edit-as-void-then-record convention as `RecordTradeInput`. */
+  readonly replacesTransactionId?: string
 }
 
 /**
@@ -176,6 +188,8 @@ export async function recordLegacyPosition(
       fxRateToHkd: rate,
     },
   ]
+
+  if (input.replacesTransactionId) await voidPosition(db, input.replacesTransactionId)
 
   const balanced = balanceEntries(inputs, { fxRoundingAccountId })
   return writeTransaction(db, balanced.entries, input.description, input.occurredAt)

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState } from 'react'
 import { voidPositionAction, type PortfolioActionState } from './actions'
 
@@ -42,32 +43,41 @@ function PositionRow({ row }: { row: RecentPositionRow }) {
         <p className="text-xs text-(--color-muted)">{row.description}</p>
       ) : null}
 
-      <form action={formAction} className="flex items-center gap-2">
-        <input type="hidden" name="transactionId" value={row.transactionId} />
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-(--color-muted) transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+      <div className="flex items-center gap-2">
+        <Link
+          href={`/portfolio?edit=${row.transactionId}#position-form`}
+          className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-(--color-muted) transition hover:border-(--color-green) hover:text-(--color-green)"
         >
-          {pending ? '…' : 'Remove'}
-        </button>
+          Edit
+        </Link>
+        <form action={formAction} className="flex items-center gap-2">
+          <input type="hidden" name="transactionId" value={row.transactionId} />
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-(--color-muted) transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+          >
+            {pending ? '…' : 'Remove'}
+          </button>
+        </form>
         {state.error ? (
           <span role="alert" className="text-xs text-red-600 dark:text-red-400">
             {state.error}
           </span>
         ) : null}
         {state.ok ? <span className="text-xs text-(--color-green)">{state.ok}</span> : null}
-      </form>
+      </div>
     </li>
   )
 }
 
 /**
- * The last few buy/sell/legacy entries, each removable — for the typo case:
- * wrong quantity, wrong account, wrong amount. Remove voids the transaction
- * rather than editing it in place (same convention as `/review`'s discard),
- * so re-entering the correct version with the form above is the fix, not an
- * in-place patch that could leave a transaction's legs out of balance.
+ * The last few buy/sell/legacy entries. Edit jumps to the form below,
+ * pre-filled; Remove voids the transaction outright, for when you'd rather
+ * just delete the typo'd entry and start fresh. Neither ever edits a posted
+ * entry's amount in place (same convention as `/review`'s discard) — Edit's
+ * "Save changes" voids the old transaction and records the new one
+ * server-side (lib/ledger/instruments.ts), it only looks like an edit here.
  */
 export function RecentPositions({ rows }: { rows: readonly RecentPositionRow[] }) {
   if (rows.length === 0) {

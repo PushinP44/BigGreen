@@ -4,13 +4,17 @@ import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
 import { loadHoldings, listRecentPositions } from '@/lib/read/holdings'
 import { computeAllocations } from '@/lib/domain/holdings'
 import { zonedParts } from '@/lib/domain/clock'
-import { formatMoney, money, toHkdMinor } from '@/lib/domain/money'
+import { formatMoney, money, toDecimalString, toHkdMinor } from '@/lib/domain/money'
 import { HoldingsTable, formatQuantity } from '../holdings-table'
 import { AllocationBreakdown, type AllocationRow } from './allocation'
 import { InstrumentForm } from './instrument-form'
-import { PositionForm } from './position-form'
+import { PositionForm, type EditingPosition } from './position-form'
 import { RecentPositions, type RecentPositionRow } from './recent-positions'
 import { WeightInput } from './weight-input'
+
+function absMinor(amountMinor: bigint): bigint {
+  return amountMinor < 0n ? -amountMinor : amountMinor
+}
 
 function shortDate(date: Date): string {
   const parts = zonedParts(date)
@@ -32,8 +36,13 @@ function bpsToPercentString(bps: number | null): string {
   return (bps / 100).toString()
 }
 
-export default async function PortfolioPage() {
+export default async function PortfolioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string }>
+}) {
   const { db } = await requireSessionDb()
+  const editingId = (await searchParams).edit
 
   // Explicit `now`, threaded into every date decision — domain functions
   // never read the clock themselves (PLAN D4).
@@ -102,6 +111,28 @@ export default async function PortfolioPage() {
     amount: formatMoney(money(p.amountMinor, p.currency)),
     description: p.description,
   }))
+
+  // Only ever set from an Edit link on a row already rendered from
+  // recentPositions above, so a match here is guaranteed to be one of the
+  // positions the user can actually see and is allowed to edit.
+  const editingSource = recentPositions.find((p) => p.transactionId === editingId)
+  const editingPosition: EditingPosition | undefined = editingSource
+    ? {
+        transactionId: editingSource.transactionId,
+        mode: editingSource.mode,
+        instrumentId: editingSource.instrumentId,
+        accountId: editingSource.accountId,
+        quantity: formatQuantity(editingSource.quantity.replace(/^-/, '')),
+        // A legacy position with unknown cost is stored as a zero-amount leg
+        // (PLAN §3) — round-tripping that back to the blank "unknown" the
+        // original form's optional Cost field means, not a misleading "0.00".
+        amount:
+          editingSource.mode === 'legacy' && editingSource.amountMinor === 0n
+            ? ''
+            : toDecimalString(money(absMinor(editingSource.amountMinor), editingSource.currency)),
+        description: editingSource.description ?? '',
+      }
+    : undefined
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12">
@@ -193,18 +224,23 @@ export default async function PortfolioPage() {
           Recent positions
         </h2>
         <p className="text-xs text-(--color-muted)">
-          Mis-typed a quantity or amount? Remove it here, then re-enter it correctly below —
-          removing voids the entry rather than editing it in place, so what you actually did stays
-          in the record.
+          Mis-typed a quantity or amount? Edit jumps to the form below pre-filled; Remove just
+          deletes it. Either way the original entry is voided rather than changed in place, so
+          what you actually did stays in the record.
         </p>
         <RecentPositions rows={recentPositionRows} />
       </section>
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
+      <section id="position-form" className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
-          Record a position
+          {editingPosition ? 'Edit position' : 'Record a position'}
         </h2>
-        <PositionForm instruments={instruments} accounts={ownAccounts} />
+        <PositionForm
+          key={editingPosition?.transactionId ?? 'new'}
+          instruments={instruments}
+          accounts={ownAccounts}
+          editing={editingPosition}
+        />
       </section>
     </main>
   )

@@ -6,7 +6,7 @@ import {
   setInstrumentWeight,
   voidPosition,
 } from '@/lib/ledger/instruments'
-import { computeHoldings } from '@/lib/domain/holdings'
+import { computeHoldings, parseQuantity } from '@/lib/domain/holdings'
 import { listRecentPositions } from '@/lib/read/holdings'
 import type { Db } from '@/lib/db/client'
 import { createTestDb, seedAccounts, USER_A, type TestDb } from '../support/db'
@@ -202,6 +202,74 @@ describe('recordTrade', () => {
       }),
     ).rejects.toThrow(/greater than zero/)
   })
+
+  it('replacesTransactionId voids the old position and records the corrected one — an edit', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    const original = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '10', // typo: meant 5
+      amount: '1500.00',
+      description: 'Buy AAPL',
+    })
+
+    const corrected = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '5',
+      amount: '750.00',
+      description: 'Buy AAPL',
+      replacesTransactionId: original.transactionId,
+    })
+
+    const statuses = await db.query<{ id: string; status: string }>(
+      `SELECT id, status FROM transactions WHERE id IN ($1, $2)`,
+      [original.transactionId, corrected.transactionId],
+    )
+    const byId = new Map(statuses.rows.map((r) => [r.id, r.status]))
+    expect(byId.get(original.transactionId)).toBe('void')
+    expect(byId.get(corrected.transactionId)).toBe('posted')
+
+    // The void'd original's entries are excluded, so only the 5-share
+    // correction counts toward the position.
+    const legs = await db.query<{ quantity_delta: string; amount_minor: string | number }>(
+      `SELECT e.quantity_delta, e.amount_minor
+         FROM entries e JOIN transactions t ON t.id = e.transaction_id
+        WHERE e.instrument_id = $1 AND t.status = 'posted'`,
+      [id],
+    )
+    const holdings = computeHoldings(
+      legs.rows.map((r) => ({
+        instrumentId: id,
+        accountId: brokerageId,
+        quantityDelta: r.quantity_delta,
+        amountMinor: BigInt(String(r.amount_minor)),
+      })),
+    )
+    expect(holdings[0]?.quantity).toEqual(parseQuantity('5'))
+  })
+
+  it('still records the correction even when replacesTransactionId no longer has anything to void', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    // A random, non-existent id — the point is the record must not be
+    // blocked by a void that has nothing to do, only best-effort attempted.
+    const result = await recordTrade(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      side: 'buy',
+      quantity: '5',
+      amount: '750.00',
+      description: '',
+      replacesTransactionId: crypto.randomUUID(),
+    })
+
+    const row = await db.query<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [
+      result.transactionId,
+    ])
+    expect(row.rows[0]?.status).toBe('posted')
+  })
 })
 
 describe('recordLegacyPosition', () => {
@@ -247,6 +315,35 @@ describe('recordLegacyPosition', () => {
     )
     expect(holdings[0]?.quantity.scaled).toBeGreaterThan(0n)
     expect(holdings[0]?.avgCostMinor).toBeNull()
+  })
+
+  it('replacesTransactionId voids the old legacy entry and records the corrected one', async () => {
+    const { id } = await createInstrument(db, { symbol: 'VOO', kind: 'etf', currency: 'USD' })
+    const original = await recordLegacyPosition(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      quantity: '5', // typo: meant 3
+      costMinor: 200000n,
+      description: 'Legacy VOO',
+    })
+
+    await recordLegacyPosition(db, {
+      instrumentId: id,
+      accountId: brokerageId,
+      quantity: '3',
+      costMinor: 120000n,
+      description: 'Legacy VOO',
+      replacesTransactionId: original.transactionId,
+    })
+
+    const row = await db.query<{ status: string }>('SELECT status FROM transactions WHERE id = $1', [
+      original.transactionId,
+    ])
+    expect(row.rows[0]?.status).toBe('void')
+
+    const positions = await listRecentPositions(db)
+    expect(positions).toHaveLength(1)
+    expect(positions[0]?.quantity.startsWith('3.')).toBe(true)
   })
 })
 
@@ -357,6 +454,11 @@ describe('listRecentPositions', () => {
     expect(byDescription.get('Partial sell')?.mode).toBe('sell')
     expect(byDescription.get('Partial sell')?.quantity.startsWith('-')).toBe(true)
     expect(byDescription.get('Legacy add')?.mode).toBe('legacy')
+
+    // instrumentId/accountId (not just the display symbol/name) are what an
+    // edit form needs to pre-select the right dropdown options.
+    expect(byDescription.get('Initial buy')?.instrumentId).toBe(id)
+    expect(byDescription.get('Initial buy')?.accountId).toBe(brokerageId)
   })
 
   it('excludes a voided position', async () => {

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState, useState } from 'react'
 import {
   recordLegacyPositionAction,
@@ -33,21 +34,40 @@ export interface AccountOption {
   readonly currency: string
 }
 
+/** What a "Edit" click on a recent position hands back in, to seed the form. */
+export interface EditingPosition {
+  readonly transactionId: string
+  readonly mode: Mode
+  readonly instrumentId: string
+  readonly accountId: string
+  readonly quantity: string
+  /** Unsigned decimal string — total cost/proceeds for a trade, cost for legacy. Empty means unknown (legacy only). */
+  readonly amount: string
+  readonly description: string
+}
+
 /**
  * Buy / sell / legacy in one sheet, same segmented-control shape as the main
  * entry form (PLAN §4.3/§4.4). Buy and sell both settle against — and hold
  * the position in — the same account; a legacy position instead balances
  * against Opening Equity, with cost optional (`COST UNKNOWN`, not zero).
+ *
+ * `editing`, when set, seeds every field from an existing position and adds
+ * a hidden `replacesTransactionId` to whichever form is submitted — the
+ * server action voids that transaction and records this one in its place
+ * (lib/ledger/instruments.ts), so from here it just looks like an edit.
  */
 export function PositionForm({
   instruments,
   accounts,
+  editing,
 }: {
   instruments: readonly InstrumentOption[]
   accounts: readonly AccountOption[]
+  editing?: EditingPosition
 }) {
-  const [mode, setMode] = useState<Mode>('buy')
-  const [instrumentId, setInstrumentId] = useState(instruments[0]?.id ?? '')
+  const [mode, setMode] = useState<Mode>(editing?.mode ?? 'buy')
+  const [instrumentId, setInstrumentId] = useState(editing?.instrumentId ?? instruments[0]?.id ?? '')
 
   const [tradeState, tradeAction, tradePending] = useActionState(recordTradeAction, initial)
   const [legacyState, legacyAction, legacyPending] = useActionState(
@@ -96,6 +116,9 @@ export function PositionForm({
       {mode === 'buy' || mode === 'sell' ? (
         <form action={tradeAction} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="side" value={mode} />
+          {editing ? (
+            <input type="hidden" name="replacesTransactionId" value={editing.transactionId} />
+          ) : null}
           <label className="flex flex-col gap-1">
             <span className={label}>Instrument</span>
             <select
@@ -113,7 +136,12 @@ export function PositionForm({
           </label>
           <label className="flex flex-col gap-1">
             <span className={label}>Account</span>
-            <select name="accountId" required className={field} defaultValue={accounts[0]?.id ?? ''}>
+            <select
+              name="accountId"
+              required
+              className={field}
+              defaultValue={editing?.accountId ?? accounts[0]?.id ?? ''}
+            >
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} · {a.currency}
@@ -123,25 +151,44 @@ export function PositionForm({
           </label>
           <label className="flex flex-col gap-1">
             <span className={label}>Quantity</span>
-            <input name="quantity" required inputMode="decimal" placeholder="10" className={`w-24 ${field}`} />
+            <input
+              name="quantity"
+              required
+              inputMode="decimal"
+              placeholder="10"
+              defaultValue={editing?.quantity}
+              className={`w-24 ${field}`}
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className={label}>
               {mode === 'buy' ? 'Total cost' : 'Total proceeds'} ({instrument?.currency ?? ''})
             </span>
-            <input name="amount" required inputMode="decimal" placeholder="1500.00" className={`w-32 ${field}`} />
+            <input
+              name="amount"
+              required
+              inputMode="decimal"
+              placeholder="1500.00"
+              defaultValue={editing?.amount}
+              className={`w-32 ${field}`}
+            />
           </label>
           <label className="flex flex-1 min-w-40 flex-col gap-1">
             <span className={label}>Note (optional)</span>
-            <input name="description" className={field} />
+            <input name="description" defaultValue={editing?.description} className={field} />
           </label>
           <button
             type="submit"
             disabled={tradePending}
             className="rounded-md bg-(--color-green) px-4 py-2 text-sm font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
           >
-            {tradePending ? 'Recording…' : mode === 'buy' ? 'Record buy' : 'Record sale'}
+            {tradePending ? 'Saving…' : editing ? 'Save changes' : mode === 'buy' ? 'Record buy' : 'Record sale'}
           </button>
+          {editing ? (
+            <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+              Cancel
+            </Link>
+          ) : null}
           {tradeState.error ? (
             <span role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
               {tradeState.error}
@@ -153,6 +200,9 @@ export function PositionForm({
         </form>
       ) : (
         <form action={legacyAction} className="flex flex-wrap items-end gap-3">
+          {editing ? (
+            <input type="hidden" name="replacesTransactionId" value={editing.transactionId} />
+          ) : null}
           <label className="flex flex-col gap-1">
             <span className={label}>Instrument</span>
             <select
@@ -171,7 +221,12 @@ export function PositionForm({
           <input type="hidden" name="currency" value={instrument?.currency ?? ''} />
           <label className="flex flex-col gap-1">
             <span className={label}>Account</span>
-            <select name="accountId" required className={field} defaultValue={accounts[0]?.id ?? ''}>
+            <select
+              name="accountId"
+              required
+              className={field}
+              defaultValue={editing?.accountId ?? accounts[0]?.id ?? ''}
+            >
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} · {a.currency}
@@ -181,23 +236,41 @@ export function PositionForm({
           </label>
           <label className="flex flex-col gap-1">
             <span className={label}>Quantity</span>
-            <input name="quantity" required inputMode="decimal" placeholder="10" className={`w-24 ${field}`} />
+            <input
+              name="quantity"
+              required
+              inputMode="decimal"
+              placeholder="10"
+              defaultValue={editing?.quantity}
+              className={`w-24 ${field}`}
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className={label}>Cost (optional)</span>
-            <input name="cost" inputMode="decimal" placeholder="Leave blank if unknown" className={`w-44 ${field}`} />
+            <input
+              name="cost"
+              inputMode="decimal"
+              placeholder="Leave blank if unknown"
+              defaultValue={editing?.amount}
+              className={`w-44 ${field}`}
+            />
           </label>
           <label className="flex flex-1 min-w-40 flex-col gap-1">
             <span className={label}>Note (optional)</span>
-            <input name="description" className={field} />
+            <input name="description" defaultValue={editing?.description} className={field} />
           </label>
           <button
             type="submit"
             disabled={legacyPending}
             className="rounded-md bg-(--color-green) px-4 py-2 text-sm font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
           >
-            {legacyPending ? 'Adding…' : 'Add legacy position'}
+            {legacyPending ? 'Saving…' : editing ? 'Save changes' : 'Add legacy position'}
           </button>
+          {editing ? (
+            <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+              Cancel
+            </Link>
+          ) : null}
           {legacyState.error ? (
             <span role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
               {legacyState.error}
