@@ -7,7 +7,7 @@ import {
   voidPosition,
 } from '@/lib/ledger/instruments'
 import { computeHoldings, parseQuantity } from '@/lib/domain/holdings'
-import { listRecentPositions } from '@/lib/read/holdings'
+import { listPositions } from '@/lib/read/holdings'
 import type { Db } from '@/lib/db/client'
 import { createTestDb, seedAccounts, USER_A, type TestDb } from '../support/db'
 
@@ -341,7 +341,7 @@ describe('recordLegacyPosition', () => {
     ])
     expect(row.rows[0]?.status).toBe('void')
 
-    const positions = await listRecentPositions(db)
+    const positions = await listPositions(db)
     expect(positions).toHaveLength(1)
     expect(positions[0]?.quantity.startsWith('3.')).toBe(true)
   })
@@ -421,7 +421,7 @@ describe('voidPosition', () => {
   })
 })
 
-describe('listRecentPositions', () => {
+describe('listPositions', () => {
   it('tells buy, sell and legacy apart', async () => {
     const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
     await recordTrade(db, {
@@ -448,7 +448,7 @@ describe('listRecentPositions', () => {
       description: 'Legacy add',
     })
 
-    const positions = await listRecentPositions(db)
+    const positions = await listPositions(db)
     const byDescription = new Map(positions.map((p) => [p.description, p]))
     expect(byDescription.get('Initial buy')?.mode).toBe('buy')
     expect(byDescription.get('Partial sell')?.mode).toBe('sell')
@@ -472,9 +472,9 @@ describe('listRecentPositions', () => {
       description: 'Typo buy',
     })
 
-    expect(await listRecentPositions(db)).toHaveLength(1)
+    expect(await listPositions(db)).toHaveLength(1)
     await voidPosition(db, transactionId)
-    expect(await listRecentPositions(db)).toHaveLength(0)
+    expect(await listPositions(db)).toHaveLength(0)
   })
 
   it('orders newest first', async () => {
@@ -498,7 +498,24 @@ describe('listRecentPositions', () => {
       occurredAt: new Date('2026-02-01T00:00:00Z'),
     })
 
-    const positions = await listRecentPositions(db)
+    const positions = await listPositions(db)
     expect(positions.map((p) => p.description)).toEqual(['Newer', 'Older'])
+  })
+
+  it('has no artificial cap — every position is editable, not just a recent handful', async () => {
+    const { id } = await createInstrument(db, { symbol: 'AAPL', kind: 'stock', currency: 'USD' })
+    const total = 25 // more than the old hardcoded limit of 20
+    for (let i = 0; i < total; i++) {
+      await recordTrade(db, {
+        instrumentId: id,
+        accountId: brokerageId,
+        side: 'buy',
+        quantity: '1',
+        amount: '150.00',
+        description: `Buy ${i}`,
+      })
+    }
+
+    expect(await listPositions(db)).toHaveLength(total)
   })
 })
