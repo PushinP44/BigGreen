@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireSessionDb } from '@/lib/db/session'
 import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
-import { loadHoldings, listRecentPositions } from '@/lib/read/holdings'
+import { loadHoldings, listPositions } from '@/lib/read/holdings'
 import { computeAllocations } from '@/lib/domain/holdings'
 import { zonedParts } from '@/lib/domain/clock'
 import { formatMoney, money, toDecimalString, toHkdMinor } from '@/lib/domain/money'
@@ -9,7 +9,7 @@ import { HoldingsTable, formatQuantity } from '../holdings-table'
 import { AllocationBreakdown, type AllocationRow } from './allocation'
 import { InstrumentForm } from './instrument-form'
 import { PositionForm, type EditingPosition } from './position-form'
-import { RecentPositions, type RecentPositionRow } from './recent-positions'
+import { PositionList, type PositionListRow } from './position-list'
 import { WeightInput } from './weight-input'
 
 function absMinor(amountMinor: bigint): bigint {
@@ -48,7 +48,7 @@ export default async function PortfolioPage({
   // never read the clock themselves (PLAN D4).
   const now = new Date()
 
-  const [instrumentRows, accounts, holdings, rates, recentPositions] = await Promise.all([
+  const [instrumentRows, accounts, holdings, rates, positions] = await Promise.all([
     db.query<InstrumentRow>(
       `SELECT id, symbol, kind::text AS kind, currency, target_weight_bps
          FROM instruments ORDER BY symbol`,
@@ -56,7 +56,7 @@ export default async function PortfolioPage({
     listAccountBalances(db),
     loadHoldings(db, now),
     rateTableFor(db),
-    listRecentPositions(db),
+    listPositions(db),
   ])
 
   const instruments = instrumentRows.rows.map((row) => ({
@@ -101,7 +101,7 @@ export default async function PortfolioPage({
     percent: a.percent,
   }))
 
-  const recentPositionRows: RecentPositionRow[] = recentPositions.map((p) => ({
+  const positionRows: PositionListRow[] = positions.map((p) => ({
     transactionId: p.transactionId,
     date: shortDate(p.occurredAt),
     mode: p.mode,
@@ -113,9 +113,9 @@ export default async function PortfolioPage({
   }))
 
   // Only ever set from an Edit link on a row already rendered from
-  // recentPositions above, so a match here is guaranteed to be one of the
+  // positions above, so a match here is guaranteed to be one of the
   // positions the user can actually see and is allowed to edit.
-  const editingSource = recentPositions.find((p) => p.transactionId === editingId)
+  const editingSource = positions.find((p) => p.transactionId === editingId)
   const editingPosition: EditingPosition | undefined = editingSource
     ? {
         transactionId: editingSource.transactionId,
@@ -221,14 +221,14 @@ export default async function PortfolioPage({
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
-          Recent positions
+          Positions
         </h2>
         <p className="text-xs text-(--color-muted)">
-          Mis-typed a quantity or amount? Edit jumps to the form below pre-filled; Remove just
-          deletes it. Either way the original entry is voided rather than changed in place, so
-          what you actually did stays in the record.
+          Every buy/sell/legacy entry, newest first. Mis-typed a quantity or amount? Edit jumps to
+          the form below pre-filled; Remove just deletes it. Either way the original entry is
+          voided rather than changed in place, so what you actually did stays in the record.
         </p>
-        <RecentPositions rows={recentPositionRows} />
+        <PositionList rows={positionRows} />
       </section>
 
       <section id="position-form" className="flex flex-col gap-4 border-t border-(--color-line) pt-8">

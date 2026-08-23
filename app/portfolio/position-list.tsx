@@ -6,7 +6,7 @@ import { voidPositionAction, type PortfolioActionState } from './actions'
 
 const initial: PortfolioActionState = {}
 
-export interface RecentPositionRow {
+export interface PositionListRow {
   readonly transactionId: string
   readonly date: string
   readonly mode: 'buy' | 'sell' | 'legacy'
@@ -17,13 +17,13 @@ export interface RecentPositionRow {
   readonly description: string | null
 }
 
-const MODE_LABEL: Record<RecentPositionRow['mode'], string> = {
+const MODE_LABEL: Record<PositionListRow['mode'], string> = {
   buy: 'Buy',
   sell: 'Sell',
   legacy: 'Legacy',
 }
 
-function PositionRow({ row }: { row: RecentPositionRow }) {
+function PositionRow({ row }: { row: PositionListRow }) {
   const [state, formAction, pending] = useActionState(voidPositionAction, initial)
 
   return (
@@ -72,23 +72,30 @@ function PositionRow({ row }: { row: RecentPositionRow }) {
 }
 
 /**
- * The last few buy/sell/legacy entries. Edit jumps to the form below,
- * pre-filled; Remove voids the transaction outright, for when you'd rather
- * just delete the typo'd entry and start fresh. Neither ever edits a posted
- * entry's amount in place (same convention as `/review`'s discard) — Edit's
- * "Save changes" voids the old transaction and records the new one
- * server-side (lib/ledger/instruments.ts), it only looks like an edit here.
+ * Every buy/sell/legacy entry, not just a recent handful — a position stuck
+ * outside some arbitrary window would otherwise be un-editable forever with
+ * no way to reach it. Edit jumps to the form below, pre-filled; Remove voids
+ * the transaction outright, for when you'd rather just delete the typo'd
+ * entry and start fresh. Neither ever edits a posted entry's amount in place
+ * (same convention as `/review`'s discard) — Edit's "Save changes" voids the
+ * old transaction and records the new one server-side
+ * (lib/ledger/instruments.ts), it only looks like an edit here.
+ *
+ * Scrolls within its own bounded height rather than growing the page
+ * without limit once there are enough entries to matter.
  */
-export function RecentPositions({ rows }: { rows: readonly RecentPositionRow[] }) {
+export function PositionList({ rows }: { rows: readonly PositionListRow[] }) {
   if (rows.length === 0) {
     return <p className="text-sm text-(--color-muted)">No positions recorded yet.</p>
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {rows.map((row) => (
-        <PositionRow key={row.transactionId} row={row} />
-      ))}
-    </ul>
+    <div className="max-h-[32rem] overflow-y-auto pr-1">
+      <ul className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <PositionRow key={row.transactionId} row={row} />
+        ))}
+      </ul>
+    </div>
   )
 }

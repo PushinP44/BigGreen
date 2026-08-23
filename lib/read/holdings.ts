@@ -120,7 +120,7 @@ export async function loadHoldings(db: Db, now: Date): Promise<PricedHolding[]> 
   return priced.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.accountName.localeCompare(b.accountName))
 }
 
-export interface RecentPosition {
+export interface Position {
   readonly transactionId: string
   readonly occurredAt: Date
   readonly description: string | null
@@ -137,18 +137,26 @@ export interface RecentPosition {
 }
 
 /**
- * The last `limit` buy/sell/legacy transactions, newest first — what a
- * "remove this, I mis-typed it" flow needs to show. Never edited in place:
- * removing one sets `status = 'void'` (same convention as `/review`'s
- * discard), so the audit trail survives and `loadHoldings`'s `status =
- * 'posted'` filter drops it from every position/allocation figure on its own.
+ * Every posted buy/sell/legacy transaction, newest first — every one of
+ * them editable or removable, not just a recent handful. Neither ever edits
+ * one in place: removing sets `status = 'void'` (same convention as
+ * `/review`'s discard) and editing voids-then-records (PLAN, see
+ * `voidPosition`/`recordTrade`'s `replacesTransactionId`), so the audit
+ * trail survives and `loadHoldings`'s `status = 'posted'` filter drops a
+ * removed one from every position/allocation figure on its own.
  *
- * Fetches every entry on each of the `limit` most-recent trade-touching
- * transactions (via the `recent` CTE) rather than filtering entries directly
- * with a bare `LIMIT` — the latter would cut a transaction off after just one
- * of its two legs, silently corrupting the mode/quantity derivation below.
+ * No practical cap: a personal ledger's lifetime trade count is nowhere
+ * near where an unbounded list would become a real page-weight problem, and
+ * a position outside some arbitrary "recent" window would otherwise be
+ * stuck un-editable forever with no way to reach it.
+ *
+ * Fetches every entry on each qualifying transaction (via the `recent` CTE,
+ * `recent` in the SQL sense of "the set just selected," not a size limit)
+ * rather than filtering entries directly — filtering entries would cut a
+ * transaction off after just one of its two legs, silently corrupting the
+ * mode/quantity derivation below.
  */
-export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPosition[]> {
+export async function listPositions(db: Db): Promise<Position[]> {
   const legRows = await db.query<{
     transaction_id: string
     occurred_at: string
@@ -164,8 +172,6 @@ export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPos
          FROM transactions t
          JOIN entries e ON e.transaction_id = t.id
         WHERE t.status = 'posted' AND e.instrument_id IS NOT NULL
-        ORDER BY t.occurred_at DESC
-        LIMIT $1
      )
      SELECT e.transaction_id, r.occurred_at::text AS occurred_at, t.description,
             e.account_id, e.instrument_id, e.quantity_delta,
@@ -174,7 +180,6 @@ export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPos
        JOIN recent r ON r.id = e.transaction_id
        JOIN transactions t ON t.id = e.transaction_id
       ORDER BY r.occurred_at DESC`,
-    [limit],
   )
 
   const [accountRows, instrumentRows] = await Promise.all([
@@ -193,7 +198,7 @@ export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPos
     legsByTransaction.set(leg.transaction_id, list)
   }
 
-  const positions: RecentPosition[] = []
+  const positions: Position[] = []
   for (const legs of legsByTransaction.values()) {
     const instrumentLeg = legs.find((leg) => leg.instrument_id !== null && leg.quantity_delta !== null)
     if (!instrumentLeg?.instrument_id || !instrumentLeg.quantity_delta) continue
@@ -208,7 +213,7 @@ export async function listRecentPositions(db: Db, limit = 20): Promise<RecentPos
     const cashLeg = legs.find((leg) => leg.instrument_id === null)
     const cashAccount = cashLeg ? accountById.get(cashLeg.account_id) : undefined
     const isSell = instrumentLeg.quantity_delta.startsWith('-')
-    const mode: RecentPosition['mode'] = isSell
+    const mode: Position['mode'] = isSell
       ? 'sell'
       : cashAccount?.system_role === 'opening_equity'
         ? 'legacy'
