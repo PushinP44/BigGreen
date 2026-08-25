@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import {
   accountBalances,
@@ -34,11 +35,10 @@ import {
 import { FX_SOURCE_KEY } from '@/lib/fx/frankfurter'
 import { PRICES_SOURCE_KEY } from '@/lib/fx/finnhub'
 import { loadHoldings } from '@/lib/read/holdings'
-import { countPendingSuggestions } from '@/lib/read/allocations'
-import { NetWorthChart, type NetWorthPoint } from './charts/net-worth-chart'
-import { TopHoldingsChart, type TopHoldingPoint } from './charts/top-holdings-chart'
-import { TopMoversChart, type MoverPoint } from './charts/top-movers-chart'
-import { EntryForm } from './entry-form'
+import { NetWorthChart, type NetWorthPoint } from '@/components/charts/net-worth-chart'
+import { TopHoldingsChart, type TopHoldingPoint } from '@/components/charts/top-holdings-chart'
+import { TopMoversChart, type MoverPoint } from '@/components/charts/top-movers-chart'
+import { EntryForm } from '@/components/entry-form'
 import { RefreshButton } from '@/components/refresh-button'
 
 const TOP_N = 3
@@ -48,7 +48,7 @@ const NET_WORTH_WEEKS = 26
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  const { db, email } = await requireSessionDb()
+  const { db } = await requireSessionDb()
 
   // Explicit `now`, threaded into every date decision. Domain functions never
   // read the clock themselves — that is what makes them testable (PLAN D4).
@@ -63,7 +63,6 @@ export default async function Home() {
     { settings },
     heartbeats,
     holdings,
-    pendingAllocations,
   ] = await Promise.all([
     loadLedgerSnapshot(db),
     listRecentTransactions(db, 20),
@@ -73,7 +72,6 @@ export default async function Home() {
     loadSafetySettings(db),
     listIngestHeartbeats(db),
     loadHoldings(db, now),
-    countPendingSuggestions(db),
   ])
 
   const thisMonth = monthInterval(now)
@@ -126,16 +124,6 @@ export default async function Home() {
     ),
   )
 
-  // Emails the parser was not confident enough to post. An unbounded queue
-  // means a parser is broken, so it belongs where you cannot miss it.
-  const pendingCount = Number(
-    (
-      await db.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM transactions WHERE status = 'pending'`,
-      )
-    ).rows[0]?.n ?? 0,
-  )
-
   // Blended to HKD only for ranking across currencies — same one-time
   // exception as the portfolio page's allocation breakdown (PLAN rev 4
   // otherwise keeps pools and the net-worth chart above unblended).
@@ -172,55 +160,8 @@ export default async function Home() {
   }).format(now)
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-12">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Big Green</h1>
-          <p className="text-sm text-muted-foreground">
-            {monthLabel} · {APP_TIMEZONE}
-          </p>
-        </div>
-        <nav className="flex items-center gap-2">
-          {pendingCount > 0 ? (
-            <Link
-              href="/review"
-              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs uppercase tracking-wide text-amber-600 transition hover:border-amber-500 dark:text-amber-400"
-            >
-              {pendingCount} to review
-            </Link>
-          ) : null}
-          {pendingAllocations > 0 ? (
-            <Link
-              href="/allocations"
-              className="rounded-md border border-(--color-green)/50 bg-(--color-green)/10 px-3 py-1.5 text-xs uppercase tracking-wide text-(--color-green) transition hover:border-(--color-green)"
-            >
-              {pendingAllocations} to allocate
-            </Link>
-          ) : null}
-          <Link href="/accounts" className={chip}>
-            Accounts
-          </Link>
-          <Link href="/categories" className={chip}>
-            Categories
-          </Link>
-          <Link href="/portfolio" className={chip}>
-            Portfolio
-          </Link>
-          <Link href="/settings" className={chip}>
-            Settings
-          </Link>
-          <a href="/api/export?format=csv" className={chip}>
-            Export
-          </a>
-          {email ? (
-            <form action="/logout" method="post">
-              <button type="submit" className={chip} title={email}>
-                Sign out
-              </button>
-            </form>
-          ) : null}
-        </nav>
-      </header>
+    <PageShell>
+      <PageHeader title="Big Green" description={`${monthLabel} · ${APP_TIMEZONE}`} />
 
       {!balanced ? (
         <p
@@ -498,13 +439,11 @@ export default async function Home() {
           </div>
         ) : null}
       </section>
-    </main>
+    </PageShell>
   )
 }
 
 const sectionHeading = 'text-sm font-medium uppercase tracking-wide text-muted-foreground'
-const chip =
-  'rounded-md border border-(--color-line) px-3 py-1.5 text-xs uppercase tracking-wide text-muted-foreground transition hover:border-(--color-green) hover:text-(--color-green)'
 
 /**
  * One currency pool. Shows the terms that produced the headline, because

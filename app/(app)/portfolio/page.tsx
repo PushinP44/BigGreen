@@ -1,11 +1,12 @@
 import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
 import { loadHoldings, listPositions } from '@/lib/read/holdings'
 import { computeAllocations } from '@/lib/domain/holdings'
 import { zonedParts } from '@/lib/domain/clock'
 import { formatMoney, money, toDecimalString, toHkdMinor } from '@/lib/domain/money'
-import { HoldingsTable, formatQuantity } from '../holdings-table'
+import { HoldingsTable, formatQuantity } from '@/components/holdings-table'
 import { AllocationBreakdown, type AllocationRow } from './allocation'
 import { InstrumentForm } from './instrument-form'
 import { PositionForm, type EditingPosition } from './position-form'
@@ -135,21 +136,17 @@ export default async function PortfolioPage({
     : undefined
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Add instruments, record buys/sells/legacy positions, and set how much of any accepted
-          allocation suggestion (<Link href="/allocations" className="underline">/allocations</Link>)
-          goes to each — a weight is a share of new invest-money, not a rebalancing target.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Portfolio"
+        description={
+          <>
+            Add instruments, record buys/sells/legacy positions, and set how much of any accepted
+            allocation suggestion (<Link href="/allocations" className="underline">/allocations</Link>)
+            goes to each — a weight is a share of new invest-money, not a rebalancing target.
+          </>
+        }
+      />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -242,6 +239,6 @@ export default async function PortfolioPage({
           editing={editingPosition}
         />
       </section>
-    </main>
+    </PageShell>
   )
 }

@@ -242,3 +242,18 @@ export async function listCategories(db: Db): Promise<CategorySnapshot[]> {
     isDiscretionary: row.is_discretionary,
   }))
 }
+
+/**
+ * Emails the parser was not confident enough to post, awaiting a decision in
+ * `/review`. An unbounded queue means a parser is broken, so the count belongs
+ * somewhere you cannot miss it — the nav badge.
+ *
+ * Previously this was raw SQL inlined halfway down the dashboard component.
+ * It has two callers now, and reads belong here regardless.
+ */
+export async function countPendingTransactions(db: Db): Promise<number> {
+  const result = await db.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM transactions WHERE status = 'pending'`,
+  )
+  return result.rows[0]?.n ?? 0
+}

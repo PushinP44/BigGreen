@@ -99,7 +99,7 @@ describe('globals.css — tokens the charts resolve at runtime', () => {
   // browser, not the bundler. An unresolvable `fill` falls back to black and an
   // unresolvable `stroke` to none — on a dark background that reads as "the
   // chart is broken", with nothing in any log.
-  const chartDir = join(process.cwd(), 'app/charts')
+  const chartDir = join(process.cwd(), 'components/charts')
   const chartFiles = readdirSync(chartDir).filter((name) => name.endsWith('.tsx'))
 
   it('finds the chart files it is meant to be guarding', () => {
