@@ -4,11 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
 import { CURRENCIES, parseAmountInput, type Currency } from '@/lib/domain/money'
+import type { ActionState } from '@/lib/action-state'
 
-export interface AccountState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type AccountState = ActionState
 
 /**
  * Account kinds a person can create.

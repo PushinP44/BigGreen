@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* Enter/exit keyframes for the overlay primitives (sheet, dropdown, tooltip).
+   Tailwind v4 dropped the animation utilities `tailwindcss-animate` provided;
+   this is the v4 replacement and is what `data-[state=open]:animate-in` needs. */
+@import 'tw-animate-css';
 
 /*
   Tailwind v4's `dark:` variant is media-query based by default. Theming is now

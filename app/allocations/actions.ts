@@ -8,13 +8,11 @@ import { invertRate } from '@/lib/domain/fx'
 import { splitByWeight, type WeightedTarget } from '@/lib/domain/allocation'
 import { BASE_CURRENCY, convert, isCurrency, money, parseRate, toDecimalString } from '@/lib/domain/money'
 import { rateTableFor } from '@/lib/read/accounts'
+import type { ActionState } from '@/lib/action-state'
 
 const FALLBACK_TARGET_ID = 'fallback'
 
-export interface AllocationActionState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type AllocationActionState = ActionState
 
 const uuid = z.uuid()
 

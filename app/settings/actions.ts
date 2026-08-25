@@ -5,11 +5,9 @@ import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
 import { parseAmountInput } from '@/lib/domain/money'
 import { putSetting, SETTING_KEYS } from '@/lib/read/settings'
+import type { ActionState } from '@/lib/action-state'
 
-export interface SettingsState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type SettingsState = ActionState
 
 const schema = z.object({
   discretionaryBudget: z.string().min(1, 'enter a discretionary budget'),

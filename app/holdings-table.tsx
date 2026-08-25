@@ -1,6 +1,6 @@
 import { formatMoney, money, type Currency } from '@/lib/domain/money'
 import type { PricedHolding } from '@/lib/read/holdings'
-import { RefreshPrices } from './refresh-prices'
+import { RefreshButton } from '@/components/refresh-button'
 
 /** Trims a fixed-point decimal string's trailing zeros for display: "10.0000000000" → "10". */
 export function formatQuantity(quantity: string): string {
@@ -95,7 +95,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">No positions yet.</p>
-        <RefreshPrices />
+        <RefreshButton source="prices" />
       </div>
     )
   }
@@ -127,7 +127,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
           fabricated gain is worse than an honest blank.
         </p>
       </div>
-      <RefreshPrices />
+      <RefreshButton source="prices" />
     </div>
   )
 }
