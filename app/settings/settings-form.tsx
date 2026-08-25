@@ -8,7 +8,7 @@ const initial: SettingsState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 function toDecimal(minor: string | undefined, decimals = 2): string {
   if (!minor) return ''
@@ -25,10 +25,10 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
     <form action={formAction} className="flex flex-col gap-10">
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Discretionary budget
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             The CAUTION band: affordable, but over what you meant to spend. Counted in HKD across
             every pool — liquidity is per currency because you cannot spend baht in Hong Kong, but
             a budget is about habits, and eating out in Bangkok is the same habit as eating out in
@@ -56,10 +56,10 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Credit cards
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             How much of a card balance competes with your rent for the same cash. Either way the
             whole balance still reduces net worth, so the gentler option cannot make you look
             richer — only more liquid, which is the truth.

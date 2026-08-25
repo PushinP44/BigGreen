@@ -12,7 +12,7 @@ const initial: PortfolioActionState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 type Mode = 'buy' | 'sell' | 'legacy'
 
@@ -88,7 +88,7 @@ export function PositionForm({
 
   if (instruments.length === 0) {
     return (
-      <p className="text-sm text-(--color-muted)">
+      <p className="text-sm text-muted-foreground">
         Add an instrument above before recording a position.
       </p>
     )
@@ -105,7 +105,7 @@ export function PositionForm({
             className={`flex-1 rounded-md px-3 py-1.5 text-sm transition ${
               mode === m.value
                 ? 'bg-(--color-green) text-white'
-                : 'text-(--color-muted) hover:text-(--color-green)'
+                : 'text-muted-foreground hover:text-(--color-green)'
             }`}
           >
             {m.label}
@@ -185,7 +185,7 @@ export function PositionForm({
             {tradePending ? 'Saving…' : editing ? 'Save changes' : mode === 'buy' ? 'Record buy' : 'Record sale'}
           </button>
           {editing ? (
-            <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+            <Link href="/portfolio" className="text-xs text-muted-foreground hover:text-(--color-green)">
               Cancel
             </Link>
           ) : null}
@@ -267,7 +267,7 @@ export function PositionForm({
             {legacyPending ? 'Saving…' : editing ? 'Save changes' : 'Add legacy position'}
           </button>
           {editing ? (
-            <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+            <Link href="/portfolio" className="text-xs text-muted-foreground hover:text-(--color-green)">
               Cancel
             </Link>
           ) : null}

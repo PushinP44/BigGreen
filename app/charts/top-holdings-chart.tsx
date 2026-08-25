@@ -23,12 +23,12 @@ export function TopHoldingsChart({ data }: { data: readonly TopHoldingPoint[] })
           <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={{ stroke: 'var(--color-line)' }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}
             width={48}

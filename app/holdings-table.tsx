@@ -28,20 +28,20 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
           </span>
         ) : null}
       </td>
-      <td className="py-2 pr-4 text-(--color-muted)">{holding.accountName}</td>
-      <td className="tabular py-2 pr-4 text-right text-(--color-muted)">
+      <td className="py-2 pr-4 text-muted-foreground">{holding.accountName}</td>
+      <td className="tabular py-2 pr-4 text-right text-muted-foreground">
         {formatQuantity(holding.quantity)}
       </td>
       <td className="tabular py-2 pr-4 text-right">
         {holding.avgCostMinor === null ? (
-          <span className="text-(--color-muted)">COST UNKNOWN</span>
+          <span className="text-muted-foreground">COST UNKNOWN</span>
         ) : (
           amount(holding.avgCostMinor)
         )}
       </td>
       <td className="tabular py-2 pr-4 text-right">
         {holding.costBasisMinor === null ? (
-          <span className="text-(--color-muted)">COST UNKNOWN</span>
+          <span className="text-muted-foreground">COST UNKNOWN</span>
         ) : (
           amount(holding.costBasisMinor)
         )}
@@ -94,7 +94,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
   if (holdings.length === 0) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-(--color-muted)">No positions yet.</p>
+        <p className="text-sm text-muted-foreground">No positions yet.</p>
         <RefreshPrices />
       </div>
     )
@@ -105,7 +105,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
+            <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="py-2 pr-4 font-medium">Symbol</th>
               <th className="py-2 pr-4 font-medium">Account</th>
               <th className="py-2 pr-4 text-right font-medium">Quantity</th>
@@ -122,7 +122,7 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
             ))}
           </tbody>
         </table>
-        <p className="pt-2 text-xs text-(--color-muted)">
+        <p className="pt-2 text-xs text-muted-foreground">
           P/L totals exclude <span className="whitespace-nowrap">COST UNKNOWN</span> positions — a
           fabricated gain is worse than an honest blank.
         </p>

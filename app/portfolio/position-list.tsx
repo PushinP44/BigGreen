@@ -29,24 +29,24 @@ function PositionRow({ row }: { row: PositionListRow }) {
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-(--color-line) p-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <span className="tabular text-xs text-(--color-muted)">{row.date}</span>
-        <span className="rounded bg-(--color-line) px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-(--color-muted)">
+        <span className="tabular text-xs text-muted-foreground">{row.date}</span>
+        <span className="rounded bg-(--color-line) px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           {MODE_LABEL[row.mode]}
         </span>
         <span className="font-medium">{row.symbol}</span>
-        <span className="text-xs text-(--color-muted)">{row.accountName}</span>
-        <span className="tabular flex-1 text-right text-(--color-muted)">{row.quantity} sh</span>
+        <span className="text-xs text-muted-foreground">{row.accountName}</span>
+        <span className="tabular flex-1 text-right text-muted-foreground">{row.quantity} sh</span>
         <span className="tabular font-medium">{row.amount}</span>
       </div>
 
       {row.description ? (
-        <p className="text-xs text-(--color-muted)">{row.description}</p>
+        <p className="text-xs text-muted-foreground">{row.description}</p>
       ) : null}
 
       <div className="flex items-center gap-2">
         <Link
           href={`/portfolio?edit=${row.transactionId}#position-form`}
-          className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-(--color-muted) transition hover:border-(--color-green) hover:text-(--color-green)"
+          className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-muted-foreground transition hover:border-(--color-green) hover:text-(--color-green)"
         >
           Edit
         </Link>
@@ -55,7 +55,7 @@ function PositionRow({ row }: { row: PositionListRow }) {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-(--color-muted) transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+            className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-muted-foreground transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
           >
             {pending ? '…' : 'Remove'}
           </button>
@@ -86,7 +86,7 @@ function PositionRow({ row }: { row: PositionListRow }) {
  */
 export function PositionList({ rows }: { rows: readonly PositionListRow[] }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-(--color-muted)">No positions recorded yet.</p>
+    return <p className="text-sm text-muted-foreground">No positions recorded yet.</p>
   }
 
   return (

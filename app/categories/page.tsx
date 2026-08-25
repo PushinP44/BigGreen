@@ -41,24 +41,24 @@ export default async function CategoriesPage() {
       <header className="flex flex-col gap-1">
         <Link
           href="/"
-          className="text-xs uppercase tracking-wide text-(--color-muted) hover:text-(--color-green)"
+          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
         >
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Categories</h1>
-        <p className="max-w-2xl text-sm text-(--color-muted)">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           This month against the {TRAILING_MONTHS}-month average — divided over every month,
           not just the ones you spent in, so one big one-off doesn&rsquo;t look like it recurs.
         </p>
       </header>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-(--color-muted)">Nothing spent yet.</p>
+        <p className="text-sm text-muted-foreground">Nothing spent yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
+              <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="py-2 pr-4 font-medium">Category</th>
                 <th className="py-2 pr-4 text-right font-medium">This month</th>
                 <th className="py-2 text-right font-medium">{TRAILING_MONTHS}-month average</th>
@@ -71,7 +71,7 @@ export default async function CategoriesPage() {
                   <td className="tabular py-2 pr-4 text-right">
                     {formatMoney(hkd(row.thisMonthHkdMinor))}
                   </td>
-                  <td className="tabular py-2 text-right text-(--color-muted)">
+                  <td className="tabular py-2 text-right text-muted-foreground">
                     {formatMoney(hkd(row.averageHkdMinor))}
                   </td>
                 </tr>
@@ -83,7 +83,7 @@ export default async function CategoriesPage() {
 
       {topNames.length > 0 ? (
         <section className="flex flex-col gap-3 border-t border-(--color-line) pt-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Trend · top {TOP_CATEGORIES} categories
           </h2>
           <CategoryTrendChart

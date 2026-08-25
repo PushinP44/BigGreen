@@ -18,7 +18,7 @@ const initial: AccountState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 /**
  * The institution, the balance an account already held before you started
@@ -35,7 +35,7 @@ export function AccountDetailsForm({ accounts }: { accounts: readonly AccountDet
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <p className="max-w-2xl text-sm text-(--color-muted)">
+      <p className="max-w-2xl text-sm text-muted-foreground">
         Set the institution that emails this account (matches alerts to it), what it held before
         you started tracking it here, and the digits from its emailed alerts — the front four of
         the account number, or the back four for a card. Leave institution and digits blank if it
@@ -54,7 +54,7 @@ export function AccountDetailsForm({ accounts }: { accounts: readonly AccountDet
               <input type="hidden" name="accountIds" value={account.id} />
               <span className="min-w-32 self-center text-sm font-medium">
                 {account.name}
-                <span className="ml-2 text-xs font-normal text-(--color-muted)">{currency}</span>
+                <span className="ml-2 text-xs font-normal text-muted-foreground">{currency}</span>
               </span>
 
               <label className="flex flex-col gap-1">

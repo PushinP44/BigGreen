@@ -44,12 +44,12 @@ export default async function AccountsPage() {
       <header className="flex flex-col gap-1">
         <Link
           href="/"
-          className="text-xs uppercase tracking-wide text-(--color-muted) hover:text-(--color-green)"
+          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
         >
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-        <p className="max-w-2xl text-sm text-(--color-muted)">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           The accounts you actually hold money in. Each currency you add becomes its own pool on
           the dashboard, judged separately — money in one currency cannot pay for something in
           another without a transfer.
@@ -57,7 +57,7 @@ export default async function AccountsPage() {
       </header>
 
       {accounts.length === 0 ? (
-        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-(--color-muted)">
+        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
           No accounts yet. Add the first one below — until then there is nowhere to record a
           transaction.
         </p>
@@ -78,7 +78,7 @@ export default async function AccountsPage() {
                     </span>
                   ) : null}
                 </span>
-                <span className="text-xs text-(--color-muted)">{account.kind}</span>
+                <span className="text-xs text-muted-foreground">{account.kind}</span>
                 <span className="tabular w-32 text-right">
                   {isCurrency(currency)
                     ? formatMoney(money(BigInt(account.balance_minor), currency as Currency))
@@ -93,7 +93,7 @@ export default async function AccountsPage() {
 
       {accounts.length > 0 ? (
         <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Account details
           </h2>
           <AccountDetailsForm
@@ -111,7 +111,7 @@ export default async function AccountsPage() {
       ) : null}
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Add an account
         </h2>
         <AccountForm />

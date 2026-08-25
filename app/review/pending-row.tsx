@@ -25,9 +25,9 @@ export function PendingRow({
   return (
     <li className="flex flex-col gap-3 rounded-lg border border-(--color-line) p-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <span className="tabular text-xs text-(--color-muted)">{date}</span>
+        <span className="tabular text-xs text-muted-foreground">{date}</span>
         <span className="flex-1 font-medium">{description}</span>
-        <span className="text-xs text-(--color-muted)">{accountName}</span>
+        <span className="text-xs text-muted-foreground">{accountName}</span>
         <span className="tabular font-medium">{amount}</span>
       </div>
 
@@ -37,7 +37,7 @@ export function PendingRow({
         most of them.
       */}
       {notes ? (
-        <pre className="whitespace-pre-wrap rounded bg-(--color-line)/40 px-3 py-2 text-xs text-(--color-muted)">
+        <pre className="whitespace-pre-wrap rounded bg-(--color-line)/40 px-3 py-2 text-xs text-muted-foreground">
           {notes}
         </pre>
       ) : null}
@@ -58,7 +58,7 @@ export function PendingRow({
           name="action"
           value="discard"
           disabled={pending}
-          className="rounded-md border border-(--color-line) px-4 py-1.5 text-sm text-(--color-muted) transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+          className="rounded-md border border-(--color-line) px-4 py-1.5 text-sm text-muted-foreground transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
         >
           Discard
         </button>

@@ -39,12 +39,12 @@ export default async function ReviewPage() {
       <header className="flex flex-col gap-1">
         <Link
           href="/"
-          className="text-xs uppercase tracking-wide text-(--color-muted) hover:text-(--color-green)"
+          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
         >
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Needs review</h1>
-        <p className="max-w-2xl text-sm text-(--color-muted)">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           Emails the parser read but was not confident enough to post on its own. Each one says
           what it was unsure about — an empty queue means the parsers are doing their job, and a
           growing one means a parser needs a look.
@@ -52,7 +52,7 @@ export default async function ReviewPage() {
       </header>
 
       {pending.length === 0 ? (
-        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-center text-sm text-(--color-muted)">
+        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-center text-sm text-muted-foreground">
           Nothing waiting.
         </p>
       ) : (

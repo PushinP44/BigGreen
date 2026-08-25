@@ -177,7 +177,7 @@ export default async function Home() {
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Big Green</h1>
-          <p className="text-sm text-(--color-muted)">
+          <p className="text-sm text-muted-foreground">
             {monthLabel} · {APP_TIMEZONE}
           </p>
         </div>
@@ -249,7 +249,7 @@ export default async function Home() {
             />
           ))}
         </div>
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           Held separately on purpose — each pool is judged against the money that can actually pay
           for something in it. Investments have their own section below and are deliberately
           excluded here — a position is not spendable liquidity.
@@ -259,7 +259,7 @@ export default async function Home() {
       <section className="flex flex-col gap-3">
         <h2 className={sectionHeading}>Net worth over time · per pool</h2>
         <NetWorthChart data={netWorthData} />
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           26 weeks, at cost — holdings count at what you paid, not today&rsquo;s market price. A
           true mark-to-market history needs a price as of every past week, not just the latest
           one; that&rsquo;s a bigger lift than this chart is.
@@ -298,7 +298,7 @@ export default async function Home() {
           <ul className="flex flex-col gap-1.5 text-sm">
             {byCategory.slice(0, 6).map((row) => (
               <li key={row.categoryId ?? 'none'} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-(--color-muted)">{row.name}</span>
+                <span className="w-32 shrink-0 truncate text-muted-foreground">{row.name}</span>
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-line)">
                   <span
                     className="block h-full rounded-full bg-(--color-green)/70"
@@ -310,14 +310,14 @@ export default async function Home() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-(--color-muted)">Nothing spent this month yet.</p>
+          <p className="text-sm text-muted-foreground">Nothing spent this month yet.</p>
         )}
       </section>
 
       <section className="flex flex-col gap-4">
         <h2 className={sectionHeading}>Record a transaction</h2>
         {ownAccounts.length === 0 ? (
-          <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-(--color-muted)">
+          <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
             No accounts yet, so there is nowhere to record a transaction.{' '}
             <Link href="/accounts" className="text-(--color-green) underline">
               Add your first account
@@ -347,7 +347,7 @@ export default async function Home() {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
+              <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="py-2 pr-4 font-medium">Account</th>
                 <th className="py-2 pr-4 font-medium">Kind</th>
                 <th className="py-2 text-right font-medium">Balance</th>
@@ -364,7 +364,7 @@ export default async function Home() {
                       </span>
                     ) : null}
                   </td>
-                  <td className="py-2 pr-4 text-(--color-muted)">{account.kind}</td>
+                  <td className="py-2 pr-4 text-muted-foreground">{account.kind}</td>
                   <td className="tabular py-2 text-right">
                     {formatMoney(
                       money(balances.get(account.id)?.nativeMinor ?? 0n, account.currency),
@@ -380,30 +380,30 @@ export default async function Home() {
       <section className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between">
           <h2 className={sectionHeading}>Holdings</h2>
-          <Link href="/portfolio" className="text-xs text-(--color-muted) hover:text-(--color-green)">
+          <Link href="/portfolio" className="text-xs text-muted-foreground hover:text-(--color-green)">
             Full breakdown →
           </Link>
         </div>
         {holdings.length === 0 ? (
-          <p className="text-sm text-(--color-muted)">No positions yet.</p>
+          <p className="text-sm text-muted-foreground">No positions yet.</p>
         ) : pricedHoldings.length === 0 ? (
-          <p className="text-sm text-(--color-muted)">
+          <p className="text-sm text-muted-foreground">
             No live prices yet — refresh prices to see your top holdings and movers.
           </p>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <h3 className="text-xs uppercase tracking-wide text-(--color-muted)">
+              <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
                 Top {TOP_N} by value
               </h3>
               <TopHoldingsChart data={topHoldings} />
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-xs uppercase tracking-wide text-(--color-muted)">
+              <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
                 Top movers
               </h3>
               {topMovers.length === 0 ? (
-                <p className="text-sm text-(--color-muted)">Nothing priced enough to compare yet.</p>
+                <p className="text-sm text-muted-foreground">Nothing priced enough to compare yet.</p>
               ) : (
                 <TopMoversChart data={topMovers} />
               )}
@@ -416,7 +416,7 @@ export default async function Home() {
       <section className="flex flex-col gap-3">
         <h2 className={sectionHeading}>Recent</h2>
         {transactions.length === 0 ? (
-          <p className="text-sm text-(--color-muted)">No transactions yet.</p>
+          <p className="text-sm text-muted-foreground">No transactions yet.</p>
         ) : (
           <ul className="flex flex-col">
             {transactions.map((row) => (
@@ -424,21 +424,21 @@ export default async function Home() {
                 key={row.id}
                 className="flex items-baseline gap-3 border-b border-(--color-line)/60 py-2 text-sm"
               >
-                <span className="tabular w-16 shrink-0 text-xs text-(--color-muted)">
+                <span className="tabular w-16 shrink-0 text-xs text-muted-foreground">
                   {shortDate(row.occurredAt)}
                 </span>
                 <span className="flex-1 truncate">
-                  {row.description || <span className="text-(--color-muted)">No description</span>}
+                  {row.description || <span className="text-muted-foreground">No description</span>}
                   {row.isTransfer ? (
-                    <span className="ml-2 rounded bg-(--color-line) px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-(--color-muted)">
+                    <span className="ml-2 rounded bg-(--color-line) px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                       transfer
                     </span>
                   ) : null}
                 </span>
-                <span className="hidden w-28 shrink-0 truncate text-xs text-(--color-muted) sm:block">
+                <span className="hidden w-28 shrink-0 truncate text-xs text-muted-foreground sm:block">
                   {row.categoryName ?? ''}
                 </span>
-                <span className="hidden w-32 shrink-0 truncate text-xs text-(--color-muted) sm:block">
+                <span className="hidden w-32 shrink-0 truncate text-xs text-muted-foreground sm:block">
                   {row.accountName}
                 </span>
                 <span
@@ -456,19 +456,19 @@ export default async function Home() {
 
       <section className="flex flex-col gap-3">
         <h2 className={sectionHeading}>Exchange rates</h2>
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           Used for cross-currency transfers and the approximate totals above — never for a headline
           figure.
         </p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           {fxStatus.length === 0 ? (
-            <span className="text-(--color-muted)">No rates stored yet.</span>
+            <span className="text-muted-foreground">No rates stored yet.</span>
           ) : (
             fxStatus.map((rate) => (
               <span key={rate.currency} className="flex items-baseline gap-2">
-                <span className="text-(--color-muted)">{rate.currency}/HKD</span>
+                <span className="text-muted-foreground">{rate.currency}/HKD</span>
                 <span className="tabular">{Number(rate.rate).toFixed(5)}</span>
-                <span className="text-xs text-(--color-muted)">
+                <span className="text-xs text-muted-foreground">
                   {rate.asOf} · {rate.source}
                   {staleness(rate.asOf, now)}
                 </span>
@@ -484,7 +484,7 @@ export default async function Home() {
           Visible on load, not only after clicking Refresh rates.
         */}
         {heartbeats.length > 0 ? (
-          <div className="flex flex-col gap-1.5 border-t border-(--color-line) pt-3 text-xs text-(--color-muted)">
+          <div className="flex flex-col gap-1.5 border-t border-(--color-line) pt-3 text-xs text-muted-foreground">
             <span className="uppercase tracking-wide">Data health</span>
             {heartbeats.map((heartbeat) => (
               <div key={heartbeat.sourceKey} className="flex items-center gap-2">
@@ -503,9 +503,9 @@ export default async function Home() {
   )
 }
 
-const sectionHeading = 'text-sm font-medium uppercase tracking-wide text-(--color-muted)'
+const sectionHeading = 'text-sm font-medium uppercase tracking-wide text-muted-foreground'
 const chip =
-  'rounded-md border border-(--color-line) px-3 py-1.5 text-xs uppercase tracking-wide text-(--color-muted) transition hover:border-(--color-green) hover:text-(--color-green)'
+  'rounded-md border border-(--color-line) px-3 py-1.5 text-xs uppercase tracking-wide text-muted-foreground transition hover:border-(--color-green) hover:text-(--color-green)'
 
 /**
  * One currency pool. Shows the terms that produced the headline, because
@@ -523,11 +523,11 @@ function PoolCard({ pool, worth }: { pool: PoolTerms; worth: CurrencyPool | unde
       }`}
     >
       <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wide text-(--color-muted)">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">
           {pool.currency}
         </span>
         {pool.runwayDays !== null ? (
-          <span className="text-xs text-(--color-muted)">
+          <span className="text-xs text-muted-foreground">
             {Math.floor(pool.runwayDays)}d cover
           </span>
         ) : null}
@@ -539,7 +539,7 @@ function PoolCard({ pool, worth }: { pool: PoolTerms; worth: CurrencyPool | unde
         {amount(pool.availableMinor)}
       </span>
 
-      <dl className="flex flex-col gap-0.5 text-xs text-(--color-muted)">
+      <dl className="flex flex-col gap-0.5 text-xs text-muted-foreground">
         <Term label="Liquid" value={amount(pool.liquidMinor)} />
         {pool.committedMinor > 0n ? (
           <Term label="Committed" value={`− ${amount(pool.committedMinor)}`} />
@@ -555,7 +555,7 @@ function PoolCard({ pool, worth }: { pool: PoolTerms; worth: CurrencyPool | unde
       </dl>
 
       {pool.burnSource !== 'none' ? (
-        <span className="text-[10px] uppercase tracking-wide text-(--color-muted)">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
           burn: {pool.burnSource}
           {pool.burnSource === 'declared' ? ' (not enough history yet)' : ''}
         </span>
@@ -581,7 +581,7 @@ function CardPanel({ card, currency }: { card: CardPosition; currency: Currency 
   if (card.owedMinor === 0n) return null
 
   return (
-    <div className="mt-2 flex flex-col gap-1 border-t border-(--color-line) pt-2 text-xs text-(--color-muted)">
+    <div className="mt-2 flex flex-col gap-1 border-t border-(--color-line) pt-2 text-xs text-muted-foreground">
       <div className="flex items-baseline justify-between gap-3">
         <span className="uppercase tracking-wide">Card owed</span>
         <span className="tabular">{amount(card.owedMinor)}</span>
@@ -627,7 +627,7 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs uppercase tracking-wide text-(--color-muted)">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       <span
         className={`tabular text-xl font-medium ${
           emphasis === 'over' ? 'text-red-600 dark:text-red-400' : ''
@@ -663,7 +663,7 @@ function staleness(asOf: string, now: Date): string {
 
 const HEALTH_COLOR: Record<HeartbeatStatus, string> = {
   ok: 'bg-(--color-green)',
-  never_run: 'bg-(--color-muted)',
+  never_run: 'bg-muted-foreground',
   stale: 'bg-amber-500',
   failing: 'bg-red-500',
 }

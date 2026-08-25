@@ -25,11 +25,11 @@ export function WeightInput({
         title="% of new invest-money that goes here when a suggestion is accepted"
         className="tabular w-14 rounded-md border border-(--color-line) bg-transparent px-2 py-1 text-right text-sm outline-none focus:border-(--color-green)"
       />
-      <span className="text-xs text-(--color-muted)">%</span>
+      <span className="text-xs text-muted-foreground">%</span>
       <button
         type="submit"
         disabled={pending}
-        className="text-xs text-(--color-muted) underline hover:text-(--color-green) disabled:opacity-50"
+        className="text-xs text-muted-foreground underline hover:text-(--color-green) disabled:opacity-50"
       >
         {pending ? '…' : 'save'}
       </button>
