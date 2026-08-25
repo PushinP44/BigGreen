@@ -7,16 +7,19 @@ import {
   recordTradeAction,
   type PortfolioActionState,
 } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Button } from '@/components/ui/button'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/ui/segmented'
+import { Select } from '@/components/ui/select'
 
 const initial: PortfolioActionState = {}
 
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
-
 type Mode = 'buy' | 'sell' | 'legacy'
 
-const MODES: Array<{ value: Mode; label: string }> = [
+const MODES: ReadonlyArray<{ readonly value: Mode; readonly label: string }> = [
   { value: 'buy', label: 'Buy' },
   { value: 'sell', label: 'Sell' },
   { value: 'legacy', label: 'Legacy position' },
@@ -56,6 +59,11 @@ export interface EditingPosition {
  * a hidden `replacesTransactionId` to whichever form is submitted — the
  * server action voids that transaction and records this one in its place
  * (lib/ledger/instruments.ts), so from here it just looks like an edit.
+ *
+ * The trade and legacy forms post to different actions and so have to stay two
+ * `<form>` elements, but they had been written out twice in full and differed
+ * in exactly one field. The shared four are components now; the difference is
+ * the `children` each form passes.
  */
 export function PositionForm({
   instruments,
@@ -69,11 +77,8 @@ export function PositionForm({
   const [mode, setMode] = useState<Mode>(editing?.mode ?? 'buy')
   const [instrumentId, setInstrumentId] = useState(editing?.instrumentId ?? instruments[0]?.id ?? '')
 
-  const [tradeState, tradeAction, tradePending] = useActionState(recordTradeAction, initial)
-  const [legacyState, legacyAction, legacyPending] = useActionState(
-    recordLegacyPositionAction,
-    initial,
-  )
+  const [tradeState, tradeAction] = useActionState(recordTradeAction, initial)
+  const [legacyState, legacyAction] = useActionState(recordLegacyPositionAction, initial)
 
   // `instrumentId` only gets its initial value at mount, so an instrument
   // added after this component first rendered with an empty list would
@@ -94,24 +99,74 @@ export function PositionForm({
     )
   }
 
+  const shared = (
+    <>
+      <Field>
+        <FieldLabel>Instrument</FieldLabel>
+        <Select
+          name="instrumentId"
+          value={selectedId}
+          onChange={(e) => setInstrumentId(e.target.value)}
+        >
+          {instruments.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.symbol} ({i.currency})
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field>
+        <FieldLabel>Account</FieldLabel>
+        <Select
+          name="accountId"
+          required
+          defaultValue={editing?.accountId ?? accounts[0]?.id ?? ''}
+        >
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name} · {a.currency}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field>
+        <FieldLabel>Quantity</FieldLabel>
+        <Input
+          name="quantity"
+          required
+          inputMode="decimal"
+          placeholder="10"
+          defaultValue={editing?.quantity}
+          className="tabular w-24"
+        />
+      </Field>
+    </>
+  )
+
+  const trailing = (
+    <>
+      <Field className="min-w-40 flex-1">
+        <FieldLabel>Note (optional)</FieldLabel>
+        <Input name="description" defaultValue={editing?.description} />
+      </Field>
+
+      <SubmitButton pendingLabel="Saving…">
+        {editing ? 'Save changes' : mode === 'legacy' ? 'Add legacy position' : mode === 'buy' ? 'Record buy' : 'Record sale'}
+      </SubmitButton>
+
+      {editing ? (
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/portfolio">Cancel</Link>
+        </Button>
+      ) : null}
+    </>
+  )
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-1 rounded-lg border border-(--color-line) p-1">
-        {MODES.map((m) => (
-          <button
-            key={m.value}
-            type="button"
-            onClick={() => setMode(m.value)}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm transition ${
-              mode === m.value
-                ? 'bg-(--color-green) text-white'
-                : 'text-muted-foreground hover:text-(--color-green)'
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <Segmented options={MODES} value={mode} onChange={setMode} label="Position kind" />
 
       {mode === 'buy' || mode === 'sell' ? (
         <form action={tradeAction} className="flex flex-wrap items-end gap-3">
@@ -119,166 +174,47 @@ export function PositionForm({
           {editing ? (
             <input type="hidden" name="replacesTransactionId" value={editing.transactionId} />
           ) : null}
-          <label className="flex flex-col gap-1">
-            <span className={label}>Instrument</span>
-            <select
-              name="instrumentId"
-              value={selectedId}
-              onChange={(e) => setInstrumentId(e.target.value)}
-              className={field}
-            >
-              {instruments.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.symbol} ({i.currency})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Account</span>
-            <select
-              name="accountId"
-              required
-              className={field}
-              defaultValue={editing?.accountId ?? accounts[0]?.id ?? ''}
-            >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} · {a.currency}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Quantity</span>
-            <input
-              name="quantity"
-              required
-              inputMode="decimal"
-              placeholder="10"
-              defaultValue={editing?.quantity}
-              className={`w-24 ${field}`}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>
+          {shared}
+          <Field>
+            <FieldLabel>
               {mode === 'buy' ? 'Total cost' : 'Total proceeds'} ({instrument?.currency ?? ''})
-            </span>
-            <input
+            </FieldLabel>
+            <Input
               name="amount"
               required
               inputMode="decimal"
               placeholder="1500.00"
               defaultValue={editing?.amount}
-              className={`w-32 ${field}`}
+              className="tabular w-32"
             />
-          </label>
-          <label className="flex flex-1 min-w-40 flex-col gap-1">
-            <span className={label}>Note (optional)</span>
-            <input name="description" defaultValue={editing?.description} className={field} />
-          </label>
-          <button
-            type="submit"
-            disabled={tradePending}
-            className="rounded-md bg-(--color-green) px-4 py-2 text-sm font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-          >
-            {tradePending ? 'Saving…' : editing ? 'Save changes' : mode === 'buy' ? 'Record buy' : 'Record sale'}
-          </button>
-          {editing ? (
-            <Link href="/portfolio" className="text-xs text-muted-foreground hover:text-(--color-green)">
-              Cancel
-            </Link>
-          ) : null}
-          {tradeState.error ? (
-            <span role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
-              {tradeState.error}
-            </span>
-          ) : null}
-          {tradeState.ok ? (
-            <span className="w-full text-xs text-(--color-green)">{tradeState.ok}</span>
-          ) : null}
+          </Field>
+          {trailing}
+          <FormStatus state={tradeState} className="w-full" />
         </form>
       ) : (
         <form action={legacyAction} className="flex flex-wrap items-end gap-3">
           {editing ? (
             <input type="hidden" name="replacesTransactionId" value={editing.transactionId} />
           ) : null}
-          <label className="flex flex-col gap-1">
-            <span className={label}>Instrument</span>
-            <select
-              name="instrumentId"
-              value={selectedId}
-              onChange={(e) => setInstrumentId(e.target.value)}
-              className={field}
-            >
-              {instruments.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.symbol} ({i.currency})
-                </option>
-              ))}
-            </select>
-          </label>
           <input type="hidden" name="currency" value={instrument?.currency ?? ''} />
-          <label className="flex flex-col gap-1">
-            <span className={label}>Account</span>
-            <select
-              name="accountId"
-              required
-              className={field}
-              defaultValue={editing?.accountId ?? accounts[0]?.id ?? ''}
-            >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} · {a.currency}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Quantity</span>
-            <input
-              name="quantity"
-              required
-              inputMode="decimal"
-              placeholder="10"
-              defaultValue={editing?.quantity}
-              className={`w-24 ${field}`}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Cost (optional)</span>
-            <input
+          {shared}
+          <Field>
+            {/*
+              Optional on purpose: an unknown cost basis has to stay unknown.
+              Defaulting it to zero would render as a 100% gain forever
+              (PLAN §7) — hence `COST UNKNOWN` downstream rather than a number.
+            */}
+            <FieldLabel>Cost (optional)</FieldLabel>
+            <Input
               name="cost"
               inputMode="decimal"
               placeholder="Leave blank if unknown"
               defaultValue={editing?.amount}
-              className={`w-44 ${field}`}
+              className="tabular w-44"
             />
-          </label>
-          <label className="flex flex-1 min-w-40 flex-col gap-1">
-            <span className={label}>Note (optional)</span>
-            <input name="description" defaultValue={editing?.description} className={field} />
-          </label>
-          <button
-            type="submit"
-            disabled={legacyPending}
-            className="rounded-md bg-(--color-green) px-4 py-2 text-sm font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-          >
-            {legacyPending ? 'Saving…' : editing ? 'Save changes' : 'Add legacy position'}
-          </button>
-          {editing ? (
-            <Link href="/portfolio" className="text-xs text-muted-foreground hover:text-(--color-green)">
-              Cancel
-            </Link>
-          ) : null}
-          {legacyState.error ? (
-            <span role="alert" className="w-full text-xs text-red-600 dark:text-red-400">
-              {legacyState.error}
-            </span>
-          ) : null}
-          {legacyState.ok ? (
-            <span className="w-full text-xs text-(--color-green)">{legacyState.ok}</span>
-          ) : null}
+          </Field>
+          {trailing}
+          <FormStatus state={legacyState} className="w-full" />
         </form>
       )}
     </div>

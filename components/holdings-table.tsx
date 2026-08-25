@@ -1,6 +1,17 @@
 import { formatMoney, money, type Currency } from '@/lib/domain/money'
 import type { PricedHolding } from '@/lib/read/holdings'
 import { RefreshButton } from '@/components/refresh-button'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 /** Trims a fixed-point decimal string's trailing zeros for display: "10.0000000000" → "10". */
 export function formatQuantity(quantity: string): string {
@@ -19,47 +30,45 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
   const stale = holding.staleDays !== null && holding.staleDays > 7
 
   return (
-    <tr className="border-b border-(--color-line)/60">
-      <td className="py-2 pr-4">
+    <TableRow>
+      <TableCell className="whitespace-nowrap">
         {holding.symbol}
         {stale ? (
-          <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+          <Badge variant="warning" className="ml-2">
             {holding.staleDays}d old
-          </span>
+          </Badge>
         ) : null}
-      </td>
-      <td className="py-2 pr-4 text-muted-foreground">{holding.accountName}</td>
-      <td className="tabular py-2 pr-4 text-right text-muted-foreground">
+      </TableCell>
+      <TableCell className="text-muted-foreground">{holding.accountName}</TableCell>
+      <TableCell className="tabular text-right text-muted-foreground">
         {formatQuantity(holding.quantity)}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
+      </TableCell>
+      <TableCell className="tabular text-right">
         {holding.avgCostMinor === null ? (
           <span className="text-muted-foreground">COST UNKNOWN</span>
         ) : (
           amount(holding.avgCostMinor)
         )}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
+      </TableCell>
+      <TableCell className="tabular text-right">
         {holding.costBasisMinor === null ? (
           <span className="text-muted-foreground">COST UNKNOWN</span>
         ) : (
           amount(holding.costBasisMinor)
         )}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
+      </TableCell>
+      <TableCell className="tabular text-right">
         {holding.priceMinor === null ? '—' : amount(holding.priceMinor)}
-      </td>
-      <td className="tabular py-2 pr-4 text-right">
+      </TableCell>
+      <TableCell className="tabular text-right">
         {holding.marketValueMinor === null ? '—' : amount(holding.marketValueMinor)}
-      </td>
-      <td
-        className={`tabular py-2 text-right ${
-          holding.unrealizedPlMinor === null
-            ? ''
-            : holding.unrealizedPlMinor >= 0n
-              ? 'text-(--color-green)'
-              : 'text-red-600 dark:text-red-400'
-        }`}
+      </TableCell>
+      <TableCell
+        className={cn(
+          'tabular text-right',
+          holding.unrealizedPlMinor !== null &&
+            (holding.unrealizedPlMinor >= 0n ? 'text-primary' : 'text-destructive'),
+        )}
       >
         {holding.unrealizedPlMinor === null ? (
           '—'
@@ -73,8 +82,8 @@ function HoldingRow({ holding }: { holding: PricedHolding }) {
             )}
           </>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -102,30 +111,30 @@ export function HoldingsTable({ holdings }: { holdings: readonly PricedHolding[]
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="py-2 pr-4 font-medium">Symbol</th>
-              <th className="py-2 pr-4 font-medium">Account</th>
-              <th className="py-2 pr-4 text-right font-medium">Quantity</th>
-              <th className="py-2 pr-4 text-right font-medium">Avg cost</th>
-              <th className="py-2 pr-4 text-right font-medium">Initial cost</th>
-              <th className="py-2 pr-4 text-right font-medium">Last price</th>
-              <th className="py-2 pr-4 text-right font-medium">Value</th>
-              <th className="py-2 text-right font-medium">Unrealised P/L</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Symbol</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead className="text-right">Quantity</TableHead>
+              <TableHead className="text-right">Avg cost</TableHead>
+              <TableHead className="text-right">Initial cost</TableHead>
+              <TableHead className="text-right">Last price</TableHead>
+              <TableHead className="text-right">Value</TableHead>
+              <TableHead className="text-right">Unrealised P/L</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {holdings.map((holding) => (
               <HoldingRow key={`${holding.instrumentId}-${holding.accountId}`} holding={holding} />
             ))}
-          </tbody>
-        </table>
-        <p className="pt-2 text-xs text-muted-foreground">
+          </TableBody>
+        </Table>
+        <TableCaption>
           P/L totals exclude <span className="whitespace-nowrap">COST UNKNOWN</span> positions — a
           fabricated gain is worse than an honest blank.
-        </p>
+        </TableCaption>
       </div>
       <RefreshButton source="prices" />
     </div>
