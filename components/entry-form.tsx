@@ -1,8 +1,18 @@
 'use client'
 
 import { useActionState, useCallback, useMemo, useState } from 'react'
+// The *extended* ActionState: `addTransaction` also reports the direction of
+// the posted transaction, which is what drives the 💵 flourish below.
 import { addTransaction, type ActionState } from '@/app/actions'
 import { TransactionEffects, type EffectTrigger } from './transaction-effects'
+import { FormStatus } from './form-status'
+import { SubmitButton } from './submit-button'
+import { Field, FieldHint, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Segmented } from '@/components/ui/segmented'
+import { Select } from '@/components/ui/select'
+import { Alert } from '@/components/ui/alert'
+import { cn } from '@/lib/utils'
 import {
   evaluatePayment,
   termsFromJson,
@@ -27,15 +37,11 @@ type Kind = 'spend' | 'income' | 'transfer'
 
 const initial: ActionState = {}
 
-const KINDS: Array<{ value: Kind; label: string }> = [
+const KINDS: ReadonlyArray<{ readonly value: Kind; readonly label: string }> = [
   { value: 'spend', label: 'Spend' },
   { value: 'income', label: 'Income' },
   { value: 'transfer', label: 'Transfer' },
 ]
-
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 /**
  * The `+` sheet: three flows, one segmented control (PLAN §4).
@@ -57,7 +63,7 @@ export function EntryForm({
   /** currency → HKD rate, as decimal strings. HKD is implicitly 1. */
   rates: Readonly<Record<string, string>>
 }) {
-  const [state, formAction, pending] = useActionState(addTransaction, initial)
+  const [state, formAction] = useActionState(addTransaction, initial)
   const [kind, setKind] = useState<Kind>('spend')
   const [fromId, setFromId] = useState(accounts[0]?.id ?? '')
   const [toId, setToId] = useState(accounts[1]?.id ?? '')
@@ -130,31 +136,15 @@ export function EntryForm({
     kind === 'transfer' && !!fromId && !!toId && currencyOf(fromId) !== currencyOf(toId)
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} className="flex flex-col gap-5">
       <input type="hidden" name="kind" value={kind} />
 
-      <div className="flex gap-1 rounded-lg border border-(--color-line) p-1 self-start">
-        {KINDS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setKind(option.value)}
-            aria-pressed={kind === option.value}
-            className={`rounded-md px-4 py-1.5 text-sm transition ${
-              kind === option.value
-                ? 'bg-(--color-green) text-white'
-                : 'text-muted-foreground hover:text-(--color-ink) dark:hover:text-white'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <Segmented options={KINDS} value={kind} onChange={setKind} label="Transaction kind" />
 
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-1 flex-col gap-1 min-w-32">
-          <span className={label}>Amount</span>
-          <input
+      <div className="flex flex-wrap gap-4">
+        <Field className="min-w-32 flex-1">
+          <FieldLabel>Amount</FieldLabel>
+          <Input
             name="amount"
             inputMode="decimal"
             autoFocus
@@ -162,71 +152,73 @@ export function EntryForm({
             placeholder="0.00"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className={`tabular text-lg ${field}`}
+            // The amount is the one figure on this form worth setting in
+            // display type — it is what the whole verdict below turns on.
+            className="tabular h-11 text-xl font-semibold tracking-tight md:text-xl"
           />
-        </label>
+        </Field>
 
         {kind === 'transfer' ? (
           <>
-            <label className="flex flex-col gap-1">
-              <span className={label}>From</span>
-              <select
+            <Field>
+              <FieldLabel>From</FieldLabel>
+              <Select
                 name="fromAccountId"
                 value={fromId}
                 onChange={(event) => setFromId(event.target.value)}
-                className={`text-lg ${field}`}
+                className="h-11"
               >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name} · {account.currency}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>To</span>
-              <select
+            <Field>
+              <FieldLabel>To</FieldLabel>
+              <Select
                 name="toAccountId"
                 value={toId}
                 onChange={(event) => setToId(event.target.value)}
-                className={`text-lg ${field}`}
+                className="h-11"
               >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name} · {account.currency}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           </>
         ) : (
           <>
-            <label className="flex flex-col gap-1">
-              <span className={label}>Account</span>
-              <select
+            <Field>
+              <FieldLabel>Account</FieldLabel>
+              <Select
                 name="accountId"
                 required
                 value={accountId}
                 onChange={(event) => setAccountId(event.target.value)}
-                className={`text-lg ${field}`}
+                className="h-11"
               >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name} · {account.currency}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
 
             {kind === 'spend' ? (
-              <label className="flex flex-col gap-1">
-                <span className={label}>Category</span>
-                <select
+              <Field>
+                <FieldLabel>Category</FieldLabel>
+                <Select
                   name="categoryId"
                   value={categoryId}
                   onChange={(event) => setCategoryId(event.target.value)}
-                  className={`text-lg ${field}`}
+                  className="h-11"
                 >
                   <option value="">Uncategorised</option>
                   {categories.map((category) => (
@@ -234,63 +226,54 @@ export function EntryForm({
                       {category.name}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
             ) : null}
           </>
         )}
       </div>
 
       {crossCurrency ? (
-        <label className="flex flex-col gap-1 max-w-xs">
-          <span className={label}>Amount received ({currencyOf(toId)})</span>
-          <input
-            name="toAmount"
-            inputMode="decimal"
-            required
-            placeholder="0.00"
-            className={`tabular text-lg ${field}`}
-          />
-          <span className="text-xs text-muted-foreground">
+        <Field className="max-w-xs">
+          <FieldLabel>Amount received ({currencyOf(toId)})</FieldLabel>
+          <Input name="toAmount" inputMode="decimal" required placeholder="0.00" className="tabular" />
+          <FieldHint>
             What actually landed. The difference against the reference rate is your bank&rsquo;s
             spread and is booked to FX Gain/Loss.
-          </span>
-        </label>
+          </FieldHint>
+        </Field>
       ) : null}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-1 flex-col gap-1 min-w-48">
-          <span className={label}>Description</span>
-          <input name="description" placeholder="Lunch, MTR, salary…" className={field} />
-        </label>
+        <Field className="min-w-48 flex-1">
+          <FieldLabel>Description</FieldLabel>
+          <Input name="description" placeholder="Lunch, MTR, salary…" />
+        </Field>
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? 'Recording…' : 'Record'}
-        </button>
+        <SubmitButton size="lg" pendingLabel="Recording…">
+          Record
+        </SubmitButton>
       </div>
 
       {safety ? <VerdictBadge verdict={safety.verdict} reason={safety.reason} /> : null}
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? <p className="text-sm text-(--color-green)">{state.ok}</p> : null}
+      <FormStatus state={state} />
 
       <TransactionEffects trigger={effectTrigger} />
     </form>
   )
 }
 
-const VERDICT_STYLE: Record<Verdict, string> = {
-  SAFE: 'border-(--color-green)/40 bg-(--color-green)/8 text-(--color-green)',
-  CAUTION: 'border-amber-500/40 bg-amber-500/8 text-amber-600 dark:text-amber-400',
-  UNSAFE: 'border-red-500/40 bg-red-500/8 text-red-600 dark:text-red-400',
+const VERDICT_VARIANT: Record<Verdict, 'success' | 'warning' | 'destructive'> = {
+  SAFE: 'success',
+  CAUTION: 'warning',
+  UNSAFE: 'destructive',
+}
+
+const VERDICT_LABEL_COLOR: Record<Verdict, string> = {
+  SAFE: 'text-primary',
+  CAUTION: 'text-warning',
+  UNSAFE: 'text-destructive',
 }
 
 /**
@@ -300,13 +283,24 @@ const VERDICT_STYLE: Record<Verdict, string> = {
  */
 function VerdictBadge({ verdict, reason }: { verdict: Verdict; reason: string }) {
   return (
-    <div
+    <Alert
+      variant={VERDICT_VARIANT[verdict]}
+      // Overrides the `role="alert"` that `variant="destructive"` would
+      // otherwise apply. This recomputes on every keystroke, and an assertive
+      // live region would interrupt the screen reader mid-word each time —
+      // polite is the only usable register for a running verdict.
       role="status"
       aria-live="polite"
-      className={`flex flex-col gap-1 rounded-lg border px-4 py-3 ${VERDICT_STYLE[verdict]}`}
     >
-      <span className="text-xs font-semibold uppercase tracking-wider">{verdict}</span>
-      <span className="text-sm text-(--color-ink)">{reason}</span>
-    </div>
+      <span
+        className={cn(
+          'text-xs font-semibold uppercase tracking-wider',
+          VERDICT_LABEL_COLOR[verdict],
+        )}
+      >
+        {verdict}
+      </span>
+      <span className="text-sm text-foreground">{reason}</span>
+    </Alert>
   )
 }
