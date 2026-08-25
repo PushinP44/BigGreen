@@ -2,11 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireSessionDb } from '@/lib/db/session'
+import type { ActionState } from '@/lib/action-state'
 
-export interface ReviewState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type ReviewState = ActionState
 
 /**
  * Confirm or discard a pending transaction.

@@ -39,8 +39,7 @@ import { NetWorthChart, type NetWorthPoint } from './charts/net-worth-chart'
 import { TopHoldingsChart, type TopHoldingPoint } from './charts/top-holdings-chart'
 import { TopMoversChart, type MoverPoint } from './charts/top-movers-chart'
 import { EntryForm } from './entry-form'
-import { RefreshPrices } from './refresh-prices'
-import { RefreshRates } from './refresh-rates'
+import { RefreshButton } from '@/components/refresh-button'
 
 const TOP_N = 3
 
@@ -410,7 +409,7 @@ export default async function Home() {
             </div>
           </div>
         )}
-        <RefreshPrices />
+        <RefreshButton source="prices" />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -476,7 +475,7 @@ export default async function Home() {
             ))
           )}
         </div>
-        <RefreshRates />
+        <RefreshButton source="rates" />
 
         {/*
           Written since the FX job existed, never shown until now — a dead

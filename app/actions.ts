@@ -6,10 +6,14 @@ import { requireSessionDb } from '@/lib/db/session'
 import { recordSimpleTransaction, recordTransfer, type Direction } from '@/lib/ledger/record'
 import { syncRates } from '@/lib/fx/frankfurter'
 import { syncPrices } from '@/lib/fx/finnhub'
+import type { ActionState as BaseActionState } from '@/lib/action-state'
 
-export interface ActionState {
-  readonly error?: string
-  readonly ok?: string
+/**
+ * The one action state that carries more than the shared `error`/`ok` pair —
+ * everything else in the app aliases `ActionState` from `@/lib/action-state`
+ * directly.
+ */
+export interface ActionState extends BaseActionState {
   /**
    * Set only on a successful spend/income (never on a transfer, which is
    * never external money in or out — PLAN D1). Sourced from what the server

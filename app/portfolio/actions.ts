@@ -11,11 +11,9 @@ import {
   voidPosition,
 } from '@/lib/ledger/instruments'
 import { parseAmountInput, type Currency } from '@/lib/domain/money'
+import type { ActionState } from '@/lib/action-state'
 
-export interface PortfolioActionState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type PortfolioActionState = ActionState
 
 const instrumentSchema = z.object({
   symbol: z.string().trim().min(1, 'enter a symbol'),

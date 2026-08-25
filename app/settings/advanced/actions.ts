@@ -5,11 +5,9 @@ import { z } from 'zod'
 import { requireSessionDb } from '@/lib/db/session'
 import { parseAmountInput, type Currency } from '@/lib/domain/money'
 import { putPoolSetting, putSetting, SETTING_KEYS } from '@/lib/read/settings'
+import type { ActionState } from '@/lib/action-state'
 
-export interface SettingsState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type SettingsState = ActionState
 
 const CURRENCIES: Currency[] = ['HKD', 'USD', 'THB']
 

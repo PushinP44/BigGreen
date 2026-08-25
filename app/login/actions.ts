@@ -3,11 +3,9 @@
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import type { ActionState } from '@/lib/action-state'
 
-export interface LoginState {
-  readonly error?: string
-  readonly ok?: string
-}
+export type LoginState = ActionState
 
 const schema = z.object({
   email: z.email('enter a valid email address'),

@@ -1,48 +1,49 @@
 'use client'
 
 import { useActionState } from 'react'
+import { Alert } from '@/components/ui/alert'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { SubmitButton } from '@/components/submit-button'
 import { requestMagicLink, type LoginState } from './actions'
 
 const initial: LoginState = {}
 
 export function LoginForm({ next }: { next: string }) {
-  const [state, formAction, pending] = useActionState(requestMagicLink, initial)
+  const [state, formAction] = useActionState(requestMagicLink, initial)
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="next" value={next} />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Email</span>
-        <input
+      <Field>
+        <FieldLabel>Email</FieldLabel>
+        <Input
           name="email"
           type="email"
           required
           autoFocus
           autoComplete="email"
           placeholder="you@example.com"
-          className="rounded-md border border-(--color-line) bg-transparent px-3 py-2.5 text-lg outline-none focus:border-(--color-green)"
+          // The one oversized input in the app: it is the only thing on the
+          // page, and this is the single field standing between you and your
+          // own money.
+          className="h-11 text-base md:text-base"
         />
-      </label>
+      </Field>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-      >
-        {pending ? 'Sending…' : 'Send sign-in link'}
-      </button>
+      <SubmitButton size="lg" pendingLabel="Sending…">
+        Send sign-in link
+      </SubmitButton>
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? (
-        <p className="rounded-md border border-(--color-green)/40 bg-(--color-green)/5 px-4 py-3 text-sm text-(--color-green)">
-          {state.ok}
-        </p>
-      ) : null}
+      {/*
+        Not <FormStatus>: on this page the outcome is the entire result of the
+        interaction rather than a footnote beside a button, so it gets a block
+        with room to breathe. `Alert` supplies the role — assertive for the
+        failure, polite for the confirmation.
+      */}
+      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
+      {state.ok ? <Alert variant="success">{state.ok}</Alert> : null}
     </form>
   )
 }
