@@ -1,6 +1,7 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { GRID, TOOLTIP_CONTENT, TOOLTIP_LABEL, X_AXIS, Y_AXIS } from './chart-theme'
 
 /** Same lightness/chroma family as the theme's green, hue rotated — see globals.css. */
 const PALETTE = [
@@ -38,27 +39,18 @@ export function CategoryTrendChart({
           data={data as CategoryTrendRow[]}
           margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
         >
-          <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid {...GRID} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={{ stroke: 'var(--color-line)' }}
-            tickLine={false}
+            {...X_AXIS}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={false}
-            tickLine={false}
+            {...Y_AXIS}
             width={48}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--color-paper)',
-              border: '1px solid var(--color-line)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'var(--color-ink)' }}
+            contentStyle={TOOLTIP_CONTENT}
+            labelStyle={TOOLTIP_LABEL}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {categoryKeys.map((key, index) => (

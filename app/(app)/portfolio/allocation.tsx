@@ -1,3 +1,5 @@
+import { Progress } from '@/components/ui/progress'
+
 export interface AllocationRow {
   readonly instrumentId: string
   readonly accountId: string
@@ -44,12 +46,12 @@ export function AllocationBreakdown({
             <span className="w-28 shrink-0 truncate text-xs text-muted-foreground">
               {row.accountName}
             </span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-line)">
-              <span
-                className="block h-full rounded-full bg-(--color-green)/70"
-                style={{ width: `${Math.min(100, Math.max(0, row.percent))}%` }}
-              />
-            </span>
+            {/*
+              The shared bar, whose track is `--muted` rather than the border
+              colour this used to use — a track lighter than its own fill reads
+              as a *full* bar in dark mode.
+            */}
+            <Progress value={row.percent} size="sm" className="flex-1" />
             <span className="tabular w-16 shrink-0 text-right">{formatPercent(row.percent)}</span>
           </li>
         ))}

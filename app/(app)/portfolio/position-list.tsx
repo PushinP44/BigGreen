@@ -3,6 +3,18 @@
 import Link from 'next/link'
 import { useActionState } from 'react'
 import { voidPositionAction, type PortfolioActionState } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 const initial: PortfolioActionState = {}
 
@@ -24,50 +36,51 @@ const MODE_LABEL: Record<PositionListRow['mode'], string> = {
 }
 
 function PositionRow({ row }: { row: PositionListRow }) {
-  const [state, formAction, pending] = useActionState(voidPositionAction, initial)
+  const [state, formAction] = useActionState(voidPositionAction, initial)
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-(--color-line) p-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <span className="tabular text-xs text-muted-foreground">{row.date}</span>
-        <span className="rounded bg-(--color-line) px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {MODE_LABEL[row.mode]}
-        </span>
+    <TableRow>
+      <TableCell className="tabular whitespace-nowrap text-xs text-muted-foreground">
+        {row.date}
+      </TableCell>
+      <TableCell>
+        <Badge>{MODE_LABEL[row.mode]}</Badge>
+      </TableCell>
+      <TableCell>
         <span className="font-medium">{row.symbol}</span>
-        <span className="text-xs text-muted-foreground">{row.accountName}</span>
-        <span className="tabular flex-1 text-right text-muted-foreground">{row.quantity} sh</span>
-        <span className="tabular font-medium">{row.amount}</span>
-      </div>
-
-      {row.description ? (
-        <p className="text-xs text-muted-foreground">{row.description}</p>
-      ) : null}
-
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/portfolio?edit=${row.transactionId}#position-form`}
-          className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-muted-foreground transition hover:border-(--color-green) hover:text-(--color-green)"
-        >
-          Edit
-        </Link>
-        <form action={formAction} className="flex items-center gap-2">
-          <input type="hidden" name="transactionId" value={row.transactionId} />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md border border-(--color-line) px-3 py-1 text-xs text-muted-foreground transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
-          >
-            {pending ? '…' : 'Remove'}
-          </button>
-        </form>
-        {state.error ? (
-          <span role="alert" className="text-xs text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
+        {/*
+          The note rides under the symbol rather than taking a column of its
+          own — it is present on a minority of rows and would otherwise be an
+          empty column pushing the figures off a narrow screen.
+        */}
+        {row.description ? (
+          <span className="block text-xs text-muted-foreground">{row.description}</span>
         ) : null}
-        {state.ok ? <span className="text-xs text-(--color-green)">{state.ok}</span> : null}
-      </div>
-    </li>
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+        {row.accountName}
+      </TableCell>
+      <TableCell className="tabular whitespace-nowrap text-right text-muted-foreground">
+        {row.quantity}
+      </TableCell>
+      <TableCell className="tabular whitespace-nowrap text-right font-medium">
+        {row.amount}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-end gap-1.5">
+          <Button asChild variant="outline" size="xs">
+            <Link href={`/portfolio?edit=${row.transactionId}#position-form`}>Edit</Link>
+          </Button>
+          <form action={formAction}>
+            <input type="hidden" name="transactionId" value={row.transactionId} />
+            <SubmitButton variant="outlineDestructive" size="xs" pendingLabel="…">
+              Remove
+            </SubmitButton>
+          </form>
+        </div>
+        <FormStatus state={state} className="block pt-1 text-right" />
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -81,6 +94,10 @@ function PositionRow({ row }: { row: PositionListRow }) {
  * old transaction and records the new one server-side
  * (lib/ledger/instruments.ts), it only looks like an edit here.
  *
+ * A table rather than the stack of bordered cards this was: these rows are
+ * read by scanning one column at a time — quantity against quantity, amount
+ * against amount — which cards actively prevent.
+ *
  * Scrolls within its own bounded height rather than growing the page
  * without limit once there are enough entries to matter.
  */
@@ -90,12 +107,27 @@ export function PositionList({ rows }: { rows: readonly PositionListRow[] }) {
   }
 
   return (
-    <div className="max-h-[32rem] overflow-y-auto pr-1">
-      <ul className="flex flex-col gap-2">
-        {rows.map((row) => (
-          <PositionRow key={row.transactionId} row={row} />
-        ))}
-      </ul>
+    <div className="max-h-[32rem] overflow-y-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Kind</TableHead>
+            <TableHead>Instrument</TableHead>
+            <TableHead>Account</TableHead>
+            <TableHead className="text-right">Qty</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-right">
+              <span className="sr-only">Actions</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <PositionRow key={row.transactionId} row={row} />
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }

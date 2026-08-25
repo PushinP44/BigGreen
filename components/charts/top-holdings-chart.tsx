@@ -1,6 +1,7 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { GRID, TOOLTIP_CONTENT, TOOLTIP_LABEL, X_AXIS, Y_AXIS } from './chart-theme'
 
 export interface TopHoldingPoint {
   readonly label: string
@@ -20,30 +21,21 @@ export function TopHoldingsChart({ data }: { data: readonly TopHoldingPoint[] })
     <div className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data as TopHoldingPoint[]} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid {...GRID} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={{ stroke: 'var(--color-line)' }}
-            tickLine={false}
+            {...X_AXIS}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={false}
-            tickLine={false}
+            {...Y_AXIS}
             width={48}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--color-paper)',
-              border: '1px solid var(--color-line)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'var(--color-ink)' }}
+            contentStyle={TOOLTIP_CONTENT}
+            labelStyle={TOOLTIP_LABEL}
             formatter={(value) => [`HK$${Number(value).toLocaleString()}`, 'Value']}
           />
-          <Bar dataKey="valueHkd" fill="var(--color-green)" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="valueHkd" fill="var(--chart-1)" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

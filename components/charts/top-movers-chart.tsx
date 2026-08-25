@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { GRID, TOOLTIP_CONTENT, TOOLTIP_LABEL, X_AXIS, Y_AXIS } from './chart-theme'
 
 export interface MoverPoint {
   readonly label: string
@@ -29,36 +30,27 @@ export function TopMoversChart({ data }: { data: readonly MoverPoint[] }) {
     <div className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data as MoverPoint[]} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid {...GRID} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={{ stroke: 'var(--color-line)' }}
-            tickLine={false}
+            {...X_AXIS}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={false}
-            tickLine={false}
+            {...Y_AXIS}
             width={48}
             tickFormatter={(value: number) => `${value}%`}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--color-paper)',
-              border: '1px solid var(--color-line)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'var(--color-ink)' }}
+            contentStyle={TOOLTIP_CONTENT}
+            labelStyle={TOOLTIP_LABEL}
             formatter={(value) => [`${Number(value).toFixed(2)}%`, 'Unrealised P/L']}
           />
-          <ReferenceLine y={0} stroke="var(--color-line)" />
+          <ReferenceLine y={0} stroke="var(--border)" />
           <Bar dataKey="percent" radius={[3, 3, 3, 3]}>
             {data.map((point) => (
               <Cell
                 key={point.label}
-                fill={point.percent >= 0 ? 'var(--color-green)' : 'var(--color-loss)'}
+                fill={point.percent >= 0 ? 'var(--chart-1)' : 'var(--destructive)'}
               />
             ))}
           </Bar>

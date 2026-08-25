@@ -100,7 +100,12 @@ describe('globals.css — tokens the charts resolve at runtime', () => {
   // unresolvable `stroke` to none — on a dark background that reads as "the
   // chart is broken", with nothing in any log.
   const chartDir = join(process.cwd(), 'components/charts')
-  const chartFiles = readdirSync(chartDir).filter((name) => name.endsWith('.tsx'))
+  // `.ts` as well as `.tsx`: the shared styling lives in chart-theme.ts, which
+  // is where most of these tokens now are. Matching only components would skip
+  // it and leave this guard pointing at the files with the fewest left.
+  const chartFiles = readdirSync(chartDir).filter(
+    (name) => name.endsWith('.tsx') || name.endsWith('.ts'),
+  )
 
   it('finds the chart files it is meant to be guarding', () => {
     expect(chartFiles.length).toBeGreaterThan(0)

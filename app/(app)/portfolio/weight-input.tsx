@@ -2,6 +2,9 @@
 
 import { useActionState } from 'react'
 import { saveWeight, type PortfolioActionState } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Input } from '@/components/ui/input'
 
 const initial: PortfolioActionState = {}
 
@@ -12,32 +15,24 @@ export function WeightInput({
   instrumentId: string
   weightPercent: string
 }) {
-  const [state, formAction, pending] = useActionState(saveWeight, initial)
+  const [state, formAction] = useActionState(saveWeight, initial)
 
   return (
     <form action={formAction} className="flex items-center gap-1.5">
       <input type="hidden" name="instrumentId" value={instrumentId} />
-      <input
+      <Input
         name="weightPercent"
         inputMode="decimal"
         defaultValue={weightPercent}
         placeholder="—"
         title="% of new invest-money that goes here when a suggestion is accepted"
-        className="tabular w-14 rounded-md border border-(--color-line) bg-transparent px-2 py-1 text-right text-sm outline-none focus:border-(--color-green)"
+        className="tabular h-8 w-14 px-2 text-right text-sm"
       />
       <span className="text-xs text-muted-foreground">%</span>
-      <button
-        type="submit"
-        disabled={pending}
-        className="text-xs text-muted-foreground underline hover:text-(--color-green) disabled:opacity-50"
-      >
-        {pending ? '…' : 'save'}
-      </button>
-      {state.error ? (
-        <span role="alert" className="text-xs text-red-600 dark:text-red-400">
-          {state.error}
-        </span>
-      ) : null}
+      <SubmitButton variant="link" size="xs" pendingLabel="…">
+        save
+      </SubmitButton>
+      <FormStatus state={state} />
     </form>
   )
 }

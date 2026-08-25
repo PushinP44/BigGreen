@@ -72,6 +72,7 @@ export function PageHeader({
  * the first one on a page usually wants it off.
  */
 export function Section({
+  id,
   title,
   description,
   actions,
@@ -79,6 +80,8 @@ export function Section({
   divided = true,
   className,
 }: {
+  /** Anchor target — `/portfolio?edit=…#position-form` scrolls to one of these. */
+  id?: string
   title?: string
   description?: ReactNode
   actions?: ReactNode
@@ -88,6 +91,7 @@ export function Section({
 }) {
   return (
     <section
+      id={id}
       className={cn(
         'flex flex-col gap-4',
         divided && 'border-t border-border pt-8',

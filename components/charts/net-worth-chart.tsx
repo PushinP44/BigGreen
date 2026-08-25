@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { GRID, TOOLTIP_CONTENT, TOOLTIP_LABEL, X_AXIS, Y_AXIS } from './chart-theme'
 
 export interface NetWorthPoint {
   readonly label: string
@@ -23,55 +24,49 @@ export interface NetWorthPoint {
  * in major units: a chart position, not a figure anything computes from, so
  * this is the one place a `bigint` is allowed to become a JS `number`.
  *
- * Same CSS custom properties as the rest of the app rather than hardcoded
- * hex — `var(--color-*)` resolves live, so the chart follows light/dark mode
- * for free. THB is dashed rather than a fourth colour the palette doesn't have.
+ * Colours come from the shared chart tokens rather than hardcoded hex, so the
+ * lines follow light/dark mode without re-rendering — see ./chart-theme.
+ * HKD keeps `--chart-1` because it is the base currency and that slot is the
+ * app's green. THB stays dashed even though it now has a hue of its own:
+ * three lines at 1.5px are easier to tell apart when shape carries some of the
+ * distinction too, and it means the chart still reads without colour.
  */
 export function NetWorthChart({ data }: { data: readonly NetWorthPoint[] }) {
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data as NetWorthPoint[]} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid {...GRID} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={{ stroke: 'var(--color-line)' }}
-            tickLine={false}
+            {...X_AXIS}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
-            axisLine={false}
-            tickLine={false}
+            {...Y_AXIS}
             width={48}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--color-paper)',
-              border: '1px solid var(--color-line)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'var(--color-ink)' }}
+            contentStyle={TOOLTIP_CONTENT}
+            labelStyle={TOOLTIP_LABEL}
           />
           <Line
             type="monotone"
             dataKey="HKD"
-            stroke="var(--color-green)"
+            stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
           />
           <Line
             type="monotone"
             dataKey="USD"
-            stroke="var(--color-ink)"
+            stroke="var(--chart-3)"
             strokeWidth={1.5}
             dot={false}
           />
           <Line
             type="monotone"
             dataKey="THB"
-            stroke="var(--muted-foreground)"
+            stroke="var(--chart-2)"
             strokeWidth={1.5}
             strokeDasharray="4 3"
             dot={false}

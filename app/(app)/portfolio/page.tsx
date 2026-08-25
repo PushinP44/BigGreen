@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import { PageHeader, PageShell } from '@/components/page-shell'
+import { PageHeader, PageShell, Section } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { listAccountBalances, rateTableFor } from '@/lib/read/accounts'
 import { loadHoldings, listPositions } from '@/lib/read/holdings'
 import { computeAllocations } from '@/lib/domain/holdings'
-import { zonedParts } from '@/lib/domain/clock'
+import { shortDate } from '@/lib/format'
 import { formatMoney, money, toDecimalString, toHkdMinor } from '@/lib/domain/money'
 import { HoldingsTable, formatQuantity } from '@/components/holdings-table'
 import { AllocationBreakdown, type AllocationRow } from './allocation'
@@ -12,14 +12,18 @@ import { InstrumentForm } from './instrument-form'
 import { PositionForm, type EditingPosition } from './position-form'
 import { PositionList, type PositionListRow } from './position-list'
 import { WeightInput } from './weight-input'
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 function absMinor(amountMinor: bigint): bigint {
   return amountMinor < 0n ? -amountMinor : amountMinor
-}
-
-function shortDate(date: Date): string {
-  const parts = zonedParts(date)
-  return `${String(parts.day).padStart(2, '0')}/${String(parts.month).padStart(2, '0')}`
 }
 
 export const dynamic = 'force-dynamic'
@@ -148,97 +152,79 @@ export default async function PortfolioPage({
         }
       />
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Holdings
-        </h2>
+      <Section title="Holdings" divided={false}>
         <HoldingsTable holdings={holdings} />
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Allocation
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Share of total investment value, blended to HKD at the current rate — the one number
-          worth comparing across currencies, since concentration risk does not care which one a
-          position is priced in.
-        </p>
+      <Section
+        title="Allocation"
+        description="Share of total investment value, blended to HKD at the current rate — the one number worth comparing across currencies, since concentration risk does not care which one a position is priced in."
+      >
         <AllocationBreakdown
           rows={allocationRows}
           excludedCount={holdings.length - allocationRows.length}
         />
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Instruments
-        </h2>
+      <Section title="Instruments">
         {instruments.length === 0 ? (
           <p className="text-sm text-muted-foreground">None yet — add one below.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">Symbol</th>
-                  <th className="py-2 pr-4 font-medium">Kind</th>
-                  <th className="py-2 pr-4 font-medium">Currency</th>
-                  <th className="py-2 text-right font-medium">Weight</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Currency</TableHead>
+                  <TableHead className="text-right">Weight</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {instruments.map((i) => (
-                  <tr key={i.id} className="border-b border-(--color-line)/60">
-                    <td className="py-2 pr-4 font-medium">{i.symbol}</td>
-                    <td className="py-2 pr-4 text-muted-foreground">{i.kind}</td>
-                    <td className="py-2 pr-4 text-muted-foreground">{i.currency}</td>
-                    <td className="py-2 text-right">
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{i.symbol}</TableCell>
+                    <TableCell className="text-muted-foreground">{i.kind}</TableCell>
+                    <TableCell className="text-muted-foreground">{i.currency}</TableCell>
+                    <TableCell>
                       <div className="flex justify-end">
                         <WeightInput
                           instrumentId={i.id}
                           weightPercent={bpsToPercentString(i.targetWeightBps)}
                         />
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-            <p className="pt-2 text-xs text-muted-foreground">
+              </TableBody>
+            </Table>
+            <TableCaption>
               Weights total {totalWeightPercent}%
               {totalWeightPercent < 100
                 ? ` — the remaining ${(100 - totalWeightPercent).toFixed(2)}% goes to whichever account you pick when you accept a suggestion, same as before weighting existed.`
                 : '.'}
-            </p>
+            </TableCaption>
           </div>
         )}
         <InstrumentForm />
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Positions
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Every buy/sell/legacy entry, newest first. Mis-typed a quantity or amount? Edit jumps to
-          the form below pre-filled; Remove just deletes it. Either way the original entry is
-          voided rather than changed in place, so what you actually did stays in the record.
-        </p>
+      <Section
+        title="Positions"
+        description="Every buy/sell/legacy entry, newest first. Mis-typed a quantity or amount? Edit jumps to the form below pre-filled; Remove just deletes it. Either way the original entry is voided rather than changed in place, so what you actually did stays in the record."
+      >
         <PositionList rows={positionRows} />
-      </section>
+      </Section>
 
-      <section id="position-form" className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          {editingPosition ? 'Edit position' : 'Record a position'}
-        </h2>
+      <Section id="position-form" title={editingPosition ? 'Edit position' : 'Record a position'}>
         <PositionForm
           key={editingPosition?.transactionId ?? 'new'}
           instruments={instruments}
           accounts={ownAccounts}
           editing={editingPosition}
         />
-      </section>
+      </Section>
+
     </PageShell>
   )
 }
