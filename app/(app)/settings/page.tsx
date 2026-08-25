@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { loadSafetySettings } from '@/lib/read/settings'
 import { SettingsFormView } from './settings-form'
@@ -10,18 +11,17 @@ export default async function SettingsPage() {
   const { form } = await loadSafetySettings(db)
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link href="/" className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)">
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Every threshold the safety rule uses lives here rather than in the code. Changes are
-          versioned, so a verdict you saw last month still reflects the rule that was in force
-          when you saw it.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Settings"
+        description={
+          <>
+            Every threshold the safety rule uses lives here rather than in the code. Changes are
+            versioned, so a verdict you saw last month still reflects the rule that was in force
+            when you saw it.
+          </>
+        }
+      />
 
       <SettingsFormView form={form} />
 
@@ -32,6 +32,6 @@ export default async function SettingsPage() {
         </Link>{' '}
         page.
       </p>
-    </main>
+    </PageShell>
   )
 }

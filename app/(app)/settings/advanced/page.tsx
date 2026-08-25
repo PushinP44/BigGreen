@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { listCreditCards, loadSafetySettings } from '@/lib/read/settings'
 import { AdvancedFormView } from './advanced-form'
@@ -11,20 +11,17 @@ export default async function AdvancedSettingsPage() {
   const [{ form }, cards] = await Promise.all([loadSafetySettings(db), listCreditCards(db)])
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/settings"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Settings
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Advanced settings</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Floors per pool, timing, ingest confidence, and credit card billing terms — set once
-          and rarely touched again.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Advanced settings"
+        description={
+          <>
+            Floors per pool, timing, ingest confidence, and credit card billing terms — set once
+            and rarely touched again.
+          </>
+        }
+        back={{ href: "/settings", label: "Settings" }}
+      />
 
       <AdvancedFormView form={form} />
 
@@ -34,6 +31,6 @@ export default async function AdvancedSettingsPage() {
         </h2>
         <CardSettings cards={cards} />
       </section>
-    </main>
+    </PageShell>
   )
 }

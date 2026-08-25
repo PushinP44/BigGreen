@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { formatMoney, isCurrency, money, type Currency } from '@/lib/domain/money'
 import { AccountDetailsForm } from './account-details-form'
@@ -40,21 +40,17 @@ export default async function AccountsPage() {
   const accounts = result.rows
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          The accounts you actually hold money in. Each currency you add becomes its own pool on
-          the dashboard, judged separately — money in one currency cannot pay for something in
-          another without a transfer.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Accounts"
+        description={
+          <>
+            The accounts you actually hold money in. Each currency you add becomes its own pool on
+            the dashboard, judged separately — money in one currency cannot pay for something in
+            another without a transfer.
+          </>
+        }
+      />
 
       {accounts.length === 0 ? (
         <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
@@ -116,6 +112,6 @@ export default async function AccountsPage() {
         </h2>
         <AccountForm />
       </section>
-    </main>
+    </PageShell>
   )
 }

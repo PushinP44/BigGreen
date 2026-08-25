@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { formatMoney, money, isCurrency, type Currency } from '@/lib/domain/money'
 import { zonedParts } from '@/lib/domain/clock'
@@ -35,21 +35,17 @@ export default async function ReviewPage() {
   const pending = result.rows
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Needs review</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Emails the parser read but was not confident enough to post on its own. Each one says
-          what it was unsure about — an empty queue means the parsers are doing their job, and a
-          growing one means a parser needs a look.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Needs review"
+        description={
+          <>
+            Emails the parser read but was not confident enough to post on its own. Each one says
+            what it was unsure about — an empty queue means the parsers are doing their job, and a
+            growing one means a parser needs a look.
+          </>
+        }
+      />
 
       {pending.length === 0 ? (
         <p className="rounded-lg border border-(--color-line) px-4 py-6 text-center text-sm text-muted-foreground">
@@ -77,7 +73,7 @@ export default async function ReviewPage() {
           })}
         </ul>
       )}
-    </main>
+    </PageShell>
   )
 }
 

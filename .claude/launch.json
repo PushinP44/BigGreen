@@ -6,6 +6,15 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--port", "3119"],
       "port": 3119
+    },
+    {
+      "name": "big-green-pglite",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "DATABASE_URL= NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= pnpm dev --port 3120"
+      ],
+      "port": 3120
     }
   ]
 }

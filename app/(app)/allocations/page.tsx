@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { listPendingSuggestions } from '@/lib/read/allocations'
 import { listAccountBalances } from '@/lib/read/accounts'
@@ -16,21 +16,17 @@ export default async function AllocationsPage() {
   const destinations = accounts.filter((a) => a.isOwn)
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Allocation suggestions</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Every external inflow of 2,000 HKD or more suggests moving 30% somewhere other than
-          spending — PLAN §8. Accepting schedules a transfer you still have to actually make;
-          dismissing needs a reason, because a suggestion you never act on is worse than none.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Allocation suggestions"
+        description={
+          <>
+            Every external inflow of 2,000 HKD or more suggests moving 30% somewhere other than
+            spending — PLAN §8. Accepting schedules a transfer you still have to actually make;
+            dismissing needs a reason, because a suggestion you never act on is worse than none.
+          </>
+        }
+      />
 
       {suggestions.length === 0 ? (
         <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
@@ -43,6 +39,6 @@ export default async function AllocationsPage() {
           ))}
         </ul>
       )}
-    </main>
+    </PageShell>
   )
 }

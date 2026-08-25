@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useCallback, useMemo, useState } from 'react'
-import { addTransaction, type ActionState } from './actions'
+import { addTransaction, type ActionState } from '@/app/actions'
 import { TransactionEffects, type EffectTrigger } from './transaction-effects'
 import {
   evaluatePayment,

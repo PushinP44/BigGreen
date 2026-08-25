@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PageHeader, PageShell } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import {
   averageSpendByCategory,
@@ -12,7 +12,7 @@ import {
 import { APP_TIMEZONE, monthInterval, trailingMonthIntervals } from '@/lib/domain/clock'
 import { formatMoney } from '@/lib/domain/money'
 import { loadLedgerSnapshot } from '@/lib/read/ledger'
-import { CategoryTrendChart, type CategoryTrendRow } from '../charts/category-trend-chart'
+import { CategoryTrendChart, type CategoryTrendRow } from '@/components/charts/category-trend-chart'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,20 +37,16 @@ export default async function CategoriesPage() {
   const trendData = buildTrendData(series, topNames)
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <Link
-          href="/"
-          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
-        >
-          ← Dashboard
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Categories</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          This month against the {TRAILING_MONTHS}-month average — divided over every month,
-          not just the ones you spent in, so one big one-off doesn&rsquo;t look like it recurs.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Categories"
+        description={
+          <>
+            This month against the {TRAILING_MONTHS}-month average — divided over every month,
+            not just the ones you spent in, so one big one-off doesn&rsquo;t look like it recurs.
+          </>
+        }
+      />
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing spent yet.</p>
@@ -94,7 +90,7 @@ export default async function CategoriesPage() {
           />
         </section>
       ) : null}
-    </main>
+    </PageShell>
   )
 }
 
