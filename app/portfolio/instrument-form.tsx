@@ -7,7 +7,7 @@ const initial: PortfolioActionState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 const KINDS = [
   { value: 'stock', label: 'Stock' },

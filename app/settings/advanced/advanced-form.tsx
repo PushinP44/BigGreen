@@ -9,7 +9,7 @@ const initial: SettingsState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 const POOLS: Array<{ currency: Currency; name: string; note: string }> = [
   {
@@ -44,10 +44,10 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
     <form action={formAction} className="flex flex-col gap-10">
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Floors, per pool
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             The floor is <strong>days of cover</strong>, not a fixed cushion: it is your daily
             spending multiplied by the days you want to keep in reserve, so it moves on its own as
             your life gets cheaper or more expensive. The monthly figure seeds that calculation —
@@ -61,9 +61,9 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
             <div key={pool.currency} className="flex flex-col gap-2">
               <div className="flex items-baseline gap-2">
                 <span className="font-medium">{pool.currency}</span>
-                <span className="text-sm text-(--color-muted)">{pool.name}</span>
+                <span className="text-sm text-muted-foreground">{pool.name}</span>
               </div>
-              <p className="max-w-2xl text-xs text-(--color-muted)">{pool.note}</p>
+              <p className="max-w-2xl text-xs text-muted-foreground">{pool.note}</p>
 
               <div className="flex flex-wrap gap-3">
                 <label className="flex flex-col gap-1">
@@ -94,10 +94,10 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Timing
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             How far ahead scheduled bills count against you, how much spending history the burn
             rate averages over, and how much history it needs before it trusts that average over
             your declared figure.
@@ -136,10 +136,10 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Gmail ingest
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-(--color-muted)">
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             A parsed email at or above this confidence posts itself; below it, it waits in the{' '}
             <span className="whitespace-nowrap">review queue</span> instead. Higher is more
             cautious — more emails wait for you to confirm them.

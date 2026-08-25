@@ -1,82 +1,244 @@
 @import 'tailwindcss';
 
-@theme {
-  --color-ink: oklch(0.22 0.02 150);
+/*
+  Tailwind v4's `dark:` variant is media-query based by default. Theming is now
+  driven by a class on <html> (next-themes) so an explicit light/dark override
+  is possible, which means the variant has to be redefined here. Without this
+  line every `dark:` utility in the app silently stops matching — no error, no
+  build failure, just red error text rendered on a dark background.
+*/
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Two layers of colour, deliberately.
+
+  The first is Big Green's own palette — paper, ink, green — at the values it
+  has always had. The second names those same colours the way shadcn's
+  components expect them (`--background`, `--primary`, `--border`…). Components
+  get a vocabulary they understand; the app keeps its identity. None of
+  shadcn's stock neutral palette is adopted.
+
+  Everything here is a real custom property on :root rather than a `@theme`
+  entry, because `app/charts/*` passes `var(--…)` straight into Recharts props
+  which land on SVG attributes. An SVG `fill` pointing at a variable that does
+  not resolve falls back to black, silently.
+*/
+:root {
+  color-scheme: light;
+
+  /* ── Big Green palette ─────────────────────────────────────────────────── */
   --color-paper: oklch(0.98 0.008 120);
+  --color-ink: oklch(0.22 0.02 150);
   --color-green: oklch(0.52 0.13 155);
   --color-green-deep: oklch(0.34 0.09 155);
-  /* Same value as Tailwind's red-600 — the loss counterpart to --color-green,
-     for the one spot (top-movers chart) that needs a computed color rather
-     than a `text-red-600 dark:text-red-400` pair, which an SVG fill can't use. */
+  /*
+    The loss counterpart to --color-green. A real custom property rather than a
+    `text-red-600 dark:text-red-400` pair because an SVG fill cannot use a
+    Tailwind variant — see app/charts/top-movers-chart.tsx.
+  */
   --color-loss: oklch(0.577 0.245 27.325);
-  --color-muted: oklch(0.55 0.015 150);
   --color-line: oklch(0.9 0.012 150);
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* Same lightness/chroma family as --color-green, hue rotated — for the
-     category-trend chart's stacked bars, the one spot in the app that needs
-     more than one or two colours apart to stay readable. */
+  /* ── shadcn semantic layer, built from the palette above ───────────────── */
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
+  /*
+    Cards sit above the page rather than matching it, so a panel reads as an
+    object. The page is warm paper; a card is a shade nearer white.
+  */
+  --card: oklch(0.995 0.004 120);
+  --card-foreground: var(--color-ink);
+  --popover: oklch(0.995 0.004 120);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-green);
+  --primary-foreground: oklch(0.99 0.005 120);
+  --secondary: oklch(0.955 0.008 120);
+  --secondary-foreground: var(--color-ink);
+  /*
+    `muted` is a *surface*; `muted-foreground` is the text colour that sits on
+    it. Big Green's old --color-muted was the latter despite the name, which is
+    why it became --muted-foreground rather than --muted — mapping it the other
+    way would have made every piece of secondary text the colour of a card.
+  */
+  --muted: oklch(0.955 0.008 120);
+  --muted-foreground: oklch(0.55 0.015 150);
+  --accent: oklch(0.94 0.012 140);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-loss);
+  --destructive-foreground: oklch(0.99 0.005 120);
+  /*
+    Not part of shadcn's token set, but the app needs both: there are 84
+    hardcoded red/amber utilities today purely because there was nowhere
+    semantic to put a "this went well" or "this is stale" colour.
+  */
+  --success: var(--color-green);
+  --success-foreground: oklch(0.99 0.005 120);
+  --warning: oklch(0.72 0.15 70);
+  --warning-foreground: oklch(0.22 0.02 150);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-green);
+
+  --sidebar: oklch(0.965 0.008 120);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-green);
+  --sidebar-primary-foreground: oklch(0.99 0.005 120);
+  --sidebar-accent: oklch(0.94 0.012 140);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-line);
+  --sidebar-ring: var(--color-green);
+
+  /*
+    Same lightness/chroma family as --color-green, hue rotated — for the
+    category-trend chart's stacked bars, the one spot in the app that needs
+    more than one or two colours apart to stay readable. Slot order is
+    load-bearing: see PALETTE in app/charts/category-trend-chart.tsx, where
+    slot 6 (--muted-foreground) is reserved for the "Other" bucket.
+  */
   --chart-1: oklch(0.52 0.13 155);
   --chart-2: oklch(0.6 0.14 70);
   --chart-3: oklch(0.55 0.13 260);
   --chart-4: oklch(0.58 0.15 25);
   --chart-5: oklch(0.55 0.12 310);
+
+  --radius: 0.5rem;
 }
 
 /*
-  Dark theme. These have to override the variables themselves rather than
-  restyling components: `--color-line` is used as a border AND as the empty
-  track behind progress bars, so leaving it near-white in dark mode makes an
-  empty budget bar read as a full one.
-*/
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ink: oklch(0.95 0.01 120);
-    --color-paper: oklch(0.19 0.015 150);
-    --color-green: oklch(0.62 0.14 155);
-    --color-green-deep: oklch(0.72 0.15 155);
-    /* Tailwind's red-400 — the dark-mode counterpart to --color-loss above. */
-    --color-loss: oklch(0.704 0.191 22.216);
-    --color-muted: oklch(0.66 0.015 150);
-    --color-line: oklch(0.32 0.015 150);
+  Dark theme. These override the palette variables themselves rather than
+  restyling components: --color-line is used as a border AND as the empty track
+  behind progress bars, so leaving it near-white in dark mode makes an empty
+  budget bar read as a full one. The semantic layer above is defined in terms
+  of the palette, so most of it follows automatically — only the surfaces that
+  are not derived need restating.
 
-    --chart-1: oklch(0.62 0.14 155);
-    --chart-2: oklch(0.7 0.15 70);
-    --chart-3: oklch(0.65 0.14 260);
-    --chart-4: oklch(0.68 0.16 25);
-    --chart-5: oklch(0.65 0.13 310);
-  }
+  `color-scheme` is set here too, not just on :root. It drives the native
+  chrome of the app's 13 <select> elements; leaving it OS-driven while the
+  class says otherwise renders every dropdown popup dark against a light UI.
+*/
+.dark {
+  color-scheme: dark;
+
+  --color-paper: oklch(0.19 0.015 150);
+  --color-ink: oklch(0.95 0.01 120);
+  --color-green: oklch(0.62 0.14 155);
+  --color-green-deep: oklch(0.72 0.15 155);
+  --color-loss: oklch(0.704 0.191 22.216);
+  --color-line: oklch(0.32 0.015 150);
+
+  --muted-foreground: oklch(0.66 0.015 150);
+  --card: oklch(0.225 0.015 150);
+  --popover: oklch(0.225 0.015 150);
+  --primary-foreground: oklch(0.16 0.015 150);
+  --secondary: oklch(0.25 0.015 150);
+  --muted: oklch(0.25 0.015 150);
+  --accent: oklch(0.28 0.018 150);
+  --destructive-foreground: oklch(0.16 0.015 150);
+  --success-foreground: oklch(0.16 0.015 150);
+  --warning: oklch(0.7 0.15 70);
+  --warning-foreground: oklch(0.16 0.015 150);
+
+  --sidebar: oklch(0.165 0.015 150);
+  --sidebar-accent: oklch(0.28 0.018 150);
+  --sidebar-primary-foreground: oklch(0.16 0.015 150);
+
+  --chart-1: oklch(0.62 0.14 155);
+  --chart-2: oklch(0.7 0.15 70);
+  --chart-3: oklch(0.65 0.14 260);
+  --chart-4: oklch(0.68 0.16 25);
+  --chart-5: oklch(0.65 0.13 310);
+}
+
+/*
+  Expose the semantic layer to Tailwind so `bg-background`, `text-foreground`,
+  `border-border` and friends exist. `inline` means the value is substituted
+  into the generated utility rather than re-exported as another variable, which
+  keeps :root above as the single place any colour is actually defined.
+*/
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {
-  html {
-    color-scheme: light dark;
-  }
-
   body {
-    background: var(--color-paper);
-    color: var(--color-ink);
+    background: var(--background);
+    color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Amounts are compared by eye down a column; tabular figures keep the
-     decimal points aligned regardless of digit widths. */
-  .tabular {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-  }
-
   select,
   input {
-    color: var(--color-ink);
+    color: var(--foreground);
   }
 
   option {
-    background: var(--color-paper);
-    color: var(--color-ink);
+    background: var(--background);
+    color: var(--foreground);
   }
+}
+
+/*
+  Amounts are compared by eye down a column; tabular figures keep the decimal
+  points aligned regardless of digit widths.
+
+  A `@utility` rather than a `@layer base` rule, which is where this lived
+  before. In the base layer any `font-sans` utility landing on the same element
+  — trivially easy to introduce via a component's default classes — wins the
+  cascade and silently un-aligns every figure in that column. As a utility it
+  competes on equal footing and `cn()` can resolve it.
+*/
+@utility tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -121,9 +283,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The flash is already opacity-only, so it needs no change. The falling
-     dollars' whole point is travel + rotation — swap to a plain fade in
-     place rather than trying to tone down motion a user opted out of. */
+  /*
+    The flash is already opacity-only, so it needs no change. The falling
+    dollars' whole point is travel + rotation — swap to a plain fade in place
+    rather than trying to tone down motion a user opted out of.
+
+    The `!important` is load-bearing: transaction-effects.tsx sets the
+    `animation` shorthand as an inline style, and a stylesheet !important
+    longhand is what beats it. Same for `top`, which overrides a `top-0`
+    utility on the same element.
+  */
   .smart-alert-dollar {
     animation-name: smart-alert-fade !important;
     top: 40% !important;

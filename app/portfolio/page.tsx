@@ -139,12 +139,12 @@ export default async function PortfolioPage({
       <header className="flex flex-col gap-1">
         <Link
           href="/"
-          className="text-xs uppercase tracking-wide text-(--color-muted) hover:text-(--color-green)"
+          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
         >
           ← Dashboard
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
-        <p className="max-w-2xl text-sm text-(--color-muted)">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           Add instruments, record buys/sells/legacy positions, and set how much of any accepted
           allocation suggestion (<Link href="/allocations" className="underline">/allocations</Link>)
           goes to each — a weight is a share of new invest-money, not a rebalancing target.
@@ -152,17 +152,17 @@ export default async function PortfolioPage({
       </header>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Holdings
         </h2>
         <HoldingsTable holdings={holdings} />
       </section>
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Allocation
         </h2>
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           Share of total investment value, blended to HKD at the current rate — the one number
           worth comparing across currencies, since concentration risk does not care which one a
           position is priced in.
@@ -174,16 +174,16 @@ export default async function PortfolioPage({
       </section>
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Instruments
         </h2>
         {instruments.length === 0 ? (
-          <p className="text-sm text-(--color-muted)">None yet — add one below.</p>
+          <p className="text-sm text-muted-foreground">None yet — add one below.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-(--color-muted)">
+                <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-4 font-medium">Symbol</th>
                   <th className="py-2 pr-4 font-medium">Kind</th>
                   <th className="py-2 pr-4 font-medium">Currency</th>
@@ -194,8 +194,8 @@ export default async function PortfolioPage({
                 {instruments.map((i) => (
                   <tr key={i.id} className="border-b border-(--color-line)/60">
                     <td className="py-2 pr-4 font-medium">{i.symbol}</td>
-                    <td className="py-2 pr-4 text-(--color-muted)">{i.kind}</td>
-                    <td className="py-2 pr-4 text-(--color-muted)">{i.currency}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">{i.kind}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">{i.currency}</td>
                     <td className="py-2 text-right">
                       <div className="flex justify-end">
                         <WeightInput
@@ -208,7 +208,7 @@ export default async function PortfolioPage({
                 ))}
               </tbody>
             </table>
-            <p className="pt-2 text-xs text-(--color-muted)">
+            <p className="pt-2 text-xs text-muted-foreground">
               Weights total {totalWeightPercent}%
               {totalWeightPercent < 100
                 ? ` — the remaining ${(100 - totalWeightPercent).toFixed(2)}% goes to whichever account you pick when you accept a suggestion, same as before weighting existed.`
@@ -220,10 +220,10 @@ export default async function PortfolioPage({
       </section>
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Positions
         </h2>
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           Every buy/sell/legacy entry, newest first. Mis-typed a quantity or amount? Edit jumps to
           the form below pre-filled; Remove just deletes it. Either way the original entry is
           voided rather than changed in place, so what you actually did stays in the record.
@@ -232,7 +232,7 @@ export default async function PortfolioPage({
       </section>
 
       <section id="position-form" className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           {editingPosition ? 'Edit position' : 'Record a position'}
         </h2>
         <PositionForm

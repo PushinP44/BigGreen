@@ -7,7 +7,7 @@ const initial: AccountState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 const KINDS = [
   { value: 'bank', label: 'Bank account' },
@@ -74,7 +74,7 @@ export function AccountForm() {
             <input type="checkbox" name="isLiquid" defaultChecked />
             <span>
               Spendable
-              <span className="ml-1 text-xs text-(--color-muted)">
+              <span className="ml-1 text-xs text-muted-foreground">
                 — counts toward safe-to-spend
               </span>
             </span>
@@ -123,7 +123,7 @@ export function AccountForm() {
         {state.ok ? <span className="text-sm text-(--color-green)">{state.ok}</span> : null}
       </div>
 
-      <p className="text-xs text-(--color-muted)">
+      <p className="text-xs text-muted-foreground">
         The institution is what matches emailed alerts to this account — <code>hsbc</code>,{' '}
         <code>za</code>, <code>mox</code>, <code>ktb</code>. Leave it blank if the account never
         emails you. If it does, the digits narrow an alert down to this account when the
@@ -143,7 +143,7 @@ export function ArchiveButton({ id }: { id: string }) {
         type="submit"
         disabled={pending}
         title="Archive — history is kept"
-        className="text-xs text-(--color-muted) transition hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+        className="text-xs text-muted-foreground transition hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
       >
         {pending ? '…' : state.error ? 'failed' : 'archive'}
       </button>

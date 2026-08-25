@@ -25,7 +25,7 @@ export function AllocationBreakdown({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-(--color-muted)">
+      <p className="text-sm text-muted-foreground">
         {excludedCount > 0
           ? 'No live prices yet — refresh prices to see allocation.'
           : 'No positions yet.'}
@@ -41,7 +41,7 @@ export function AllocationBreakdown({
         {sorted.map((row) => (
           <li key={`${row.instrumentId}-${row.accountId}`} className="flex items-center gap-3">
             <span className="w-20 shrink-0 truncate font-medium">{row.symbol}</span>
-            <span className="w-28 shrink-0 truncate text-xs text-(--color-muted)">
+            <span className="w-28 shrink-0 truncate text-xs text-muted-foreground">
               {row.accountName}
             </span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-(--color-line)">
@@ -55,7 +55,7 @@ export function AllocationBreakdown({
         ))}
       </ul>
       {excludedCount > 0 ? (
-        <p className="text-xs text-(--color-muted)">
+        <p className="text-xs text-muted-foreground">
           {excludedCount} position{excludedCount === 1 ? '' : 's'} excluded — no live price yet.
         </p>
       ) : null}

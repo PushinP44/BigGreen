@@ -38,10 +38,10 @@ export function SuggestionRow({
           <p className="text-sm">
             {suggestion.triggerDescription || 'Inflow'}
             {suggestion.fromAccountName ? (
-              <span className="text-(--color-muted)"> · {suggestion.fromAccountName}</span>
+              <span className="text-muted-foreground"> · {suggestion.fromAccountName}</span>
             ) : null}
           </p>
-          <p className="tabular text-xs text-(--color-muted)">
+          <p className="tabular text-xs text-muted-foreground">
             HK${toDecimal(suggestion.inflowHkdMinor)} in
           </p>
         </div>
@@ -75,7 +75,7 @@ export function SuggestionRow({
           <button
             type="button"
             onClick={() => setShowDismiss(true)}
-            className="text-xs text-(--color-muted) underline hover:text-red-600 dark:hover:text-red-400"
+            className="text-xs text-muted-foreground underline hover:text-red-600 dark:hover:text-red-400"
           >
             Dismiss
           </button>
@@ -99,7 +99,7 @@ export function SuggestionRow({
           <button
             type="button"
             onClick={() => setShowDismiss(false)}
-            className="text-xs text-(--color-muted) underline"
+            className="text-xs text-muted-foreground underline"
           >
             Cancel
           </button>

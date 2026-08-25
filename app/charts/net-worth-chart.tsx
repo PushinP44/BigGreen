@@ -35,12 +35,12 @@ export function NetWorthChart({ data }: { data: readonly NetWorthPoint[] }) {
           <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={{ stroke: 'var(--color-line)' }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}
             width={48}
@@ -71,7 +71,7 @@ export function NetWorthChart({ data }: { data: readonly NetWorthPoint[] }) {
           <Line
             type="monotone"
             dataKey="THB"
-            stroke="var(--color-muted)"
+            stroke="var(--muted-foreground)"
             strokeWidth={1.5}
             strokeDasharray="4 3"
             dot={false}

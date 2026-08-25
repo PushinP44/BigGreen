@@ -15,12 +15,12 @@ export default async function AdvancedSettingsPage() {
       <header className="flex flex-col gap-1">
         <Link
           href="/settings"
-          className="text-xs uppercase tracking-wide text-(--color-muted) hover:text-(--color-green)"
+          className="text-xs uppercase tracking-wide text-muted-foreground hover:text-(--color-green)"
         >
           ← Settings
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Advanced settings</h1>
-        <p className="max-w-2xl text-sm text-(--color-muted)">
+        <p className="max-w-2xl text-sm text-muted-foreground">
           Floors per pool, timing, ingest confidence, and credit card billing terms — set once
           and rarely touched again.
         </p>
@@ -29,7 +29,7 @@ export default async function AdvancedSettingsPage() {
       <AdvancedFormView form={form} />
 
       <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-(--color-muted)">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Credit cards
         </h2>
         <CardSettings cards={cards} />

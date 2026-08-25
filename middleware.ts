@@ -70,6 +70,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Everything except Next's own assets and static files.
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    //
+    // The extension list covers fonts and manifests as well as images: a file
+    // served from `public/` that is not excluded here runs this middleware,
+    // which means a live Supabase round trip per request and — for anything
+    // requested in an unauthenticated context — a 307 to /login instead of the
+    // asset. A font that silently 307s just renders as the fallback face.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|webmanifest|txt)$).*)',
   ],
 }

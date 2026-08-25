@@ -20,7 +20,7 @@ const initial: SettingsState = {}
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 function toDecimal(minor: string | null, decimals = 2): string {
   if (minor === null) return ''
@@ -37,12 +37,12 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
   const [state, formAction, pending] = useActionState(saveCard, initial)
 
   if (cards.length === 0) {
-    return <p className="text-sm text-(--color-muted)">No credit card accounts yet.</p>
+    return <p className="text-sm text-muted-foreground">No credit card accounts yet.</p>
   }
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      <p className="max-w-2xl text-sm text-(--color-muted)">
+      <p className="max-w-2xl text-sm text-muted-foreground">
         With these filled in, the safety rule uses the real billing cycle: only the{' '}
         <strong>minimum payment</strong> due before your horizon counts against what you can
         spend, instead of the entire balance. Leave them blank and it falls back to treating the
@@ -54,7 +54,7 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
           <input type="hidden" name="cardIds" value={card.id} />
           <div className="flex items-baseline gap-2">
             <span className="font-medium">{card.name}</span>
-            <span className="text-xs text-(--color-muted)">{card.currency}</span>
+            <span className="text-xs text-muted-foreground">{card.currency}</span>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -139,7 +139,7 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
             </label>
           </div>
 
-          <p className="text-xs text-(--color-muted)">
+          <p className="text-xs text-muted-foreground">
             The last four digits are how an emailed alert is matched to this card. Without them,
             an alert naming a card number cannot be filed with certainty and waits for review.
             A statement day of 31 is fine — short months clamp to their last day. If your due day

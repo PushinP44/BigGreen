@@ -13,7 +13,7 @@ export function LoginForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-wide text-(--color-muted)">Email</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Email</span>
         <input
           name="email"
           type="email"

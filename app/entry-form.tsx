@@ -35,7 +35,7 @@ const KINDS: Array<{ value: Kind; label: string }> = [
 
 const field =
   'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-(--color-muted)'
+const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 /**
  * The `+` sheet: three flows, one segmented control (PLAN §4).
@@ -143,7 +143,7 @@ export function EntryForm({
             className={`rounded-md px-4 py-1.5 text-sm transition ${
               kind === option.value
                 ? 'bg-(--color-green) text-white'
-                : 'text-(--color-muted) hover:text-(--color-ink) dark:hover:text-white'
+                : 'text-muted-foreground hover:text-(--color-ink) dark:hover:text-white'
             }`}
           >
             {option.label}
@@ -251,7 +251,7 @@ export function EntryForm({
             placeholder="0.00"
             className={`tabular text-lg ${field}`}
           />
-          <span className="text-xs text-(--color-muted)">
+          <span className="text-xs text-muted-foreground">
             What actually landed. The difference against the reference rate is your bank&rsquo;s
             spread and is booked to FX Gain/Loss.
           </span>

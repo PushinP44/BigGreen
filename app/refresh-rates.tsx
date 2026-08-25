@@ -13,7 +13,7 @@ export function RefreshRates() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-(--color-line) px-3 py-1.5 text-xs uppercase tracking-wide text-(--color-muted) transition hover:border-(--color-green) hover:text-(--color-green) disabled:opacity-50"
+        className="rounded-md border border-(--color-line) px-3 py-1.5 text-xs uppercase tracking-wide text-muted-foreground transition hover:border-(--color-green) hover:text-(--color-green) disabled:opacity-50"
       >
         {pending ? 'Fetching…' : 'Refresh rates'}
       </button>

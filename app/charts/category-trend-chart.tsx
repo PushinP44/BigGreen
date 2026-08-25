@@ -9,7 +9,7 @@ const PALETTE = [
   'var(--chart-3)',
   'var(--chart-4)',
   'var(--chart-5)',
-  'var(--color-muted)', // "Other" always renders in this slot — see the page that builds categoryKeys
+  'var(--muted-foreground)', // "Other" always renders in this slot — see the page that builds categoryKeys
 ]
 
 export interface CategoryTrendRow {
@@ -41,12 +41,12 @@ export function CategoryTrendChart({
           <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={{ stroke: 'var(--color-line)' }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}
             width={48}
