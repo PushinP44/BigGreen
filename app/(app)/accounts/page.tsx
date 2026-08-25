@@ -1,4 +1,13 @@
-import { PageHeader, PageShell } from '@/components/page-shell'
+import { PageHeader, PageShell, Section } from '@/components/page-shell'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { requireSessionDb } from '@/lib/db/session'
 import { formatMoney, isCurrency, money, type Currency } from '@/lib/domain/money'
 import { AccountDetailsForm } from './account-details-form'
@@ -53,45 +62,55 @@ export default async function AccountsPage() {
       />
 
       {accounts.length === 0 ? (
-        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
           No accounts yet. Add the first one below — until then there is nowhere to record a
           transaction.
         </p>
       ) : (
-        <ul className="flex flex-col">
-          {accounts.map((account) => {
-            const currency = account.currency.trim()
-            return (
-              <li
-                key={account.id}
-                className="flex flex-wrap items-baseline gap-3 border-b border-(--color-line)/60 py-2.5 text-sm"
-              >
-                <span className="flex-1 font-medium">
-                  {account.name}
-                  {account.is_liquid ? (
-                    <span className="ml-2 rounded bg-(--color-green)/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-(--color-green)">
-                      liquid
-                    </span>
-                  ) : null}
-                </span>
-                <span className="text-xs text-muted-foreground">{account.kind}</span>
-                <span className="tabular w-32 text-right">
-                  {isCurrency(currency)
-                    ? formatMoney(money(BigInt(account.balance_minor), currency as Currency))
-                    : `${account.balance_minor} ${currency}`}
-                </span>
-                <ArchiveButton id={account.id} />
-              </li>
-            )
-          })}
-        </ul>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Account</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
+              <TableHead className="text-right">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {accounts.map((account) => {
+              const currency = account.currency.trim()
+              return (
+                <TableRow key={account.id}>
+                  <TableCell className="font-medium">
+                    {account.name}
+                    {account.is_liquid ? (
+                      <Badge variant="success" className="ml-2">
+                        liquid
+                      </Badge>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{account.kind}</TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-right">
+                    {isCurrency(currency)
+                      ? formatMoney(money(BigInt(account.balance_minor), currency as Currency))
+                      : `${account.balance_minor} ${currency}`}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      <ArchiveButton id={account.id} />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
       )}
 
       {accounts.length > 0 ? (
-        <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Account details
-          </h2>
+        <Section title="Account details">
           <AccountDetailsForm
             accounts={accounts.map((account) => ({
               id: account.id,
@@ -103,15 +122,13 @@ export default async function AccountsPage() {
               openingBalanceMinor: account.opening_balance_minor,
             }))}
           />
-        </section>
+        </Section>
       ) : null}
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Add an account
-        </h2>
+      <Section title="Add an account">
         <AccountForm />
-      </section>
+      </Section>
+
     </PageShell>
   )
 }

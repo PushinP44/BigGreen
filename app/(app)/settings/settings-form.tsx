@@ -3,12 +3,13 @@
 import { useActionState } from 'react'
 import { saveSettings, type SettingsState } from './actions'
 import type { SettingsForm } from '@/lib/read/settings'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Section, SectionHeading } from '@/components/page-shell'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
 const initial: SettingsState = {}
-
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 function toDecimal(minor: string | undefined, decimals = 2): string {
   if (!minor) return ''
@@ -19,15 +20,13 @@ function toDecimal(minor: string | undefined, decimals = 2): string {
 }
 
 export function SettingsFormView({ form }: { form: SettingsForm }) {
-  const [state, formAction, pending] = useActionState(saveSettings, initial)
+  const [state, formAction] = useActionState(saveSettings, initial)
 
   return (
     <form action={formAction} className="flex flex-col gap-10">
-      <section className="flex flex-col gap-4">
+      <Section divided={false}>
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Discretionary budget
-          </h2>
+          <SectionHeading>Discretionary budget</SectionHeading>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             The CAUTION band: affordable, but over what you meant to spend. Counted in HKD across
             every pool — liquidity is per currency because you cannot spend baht in Hong Kong, but
@@ -36,29 +35,27 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
           </p>
         </div>
 
-        <label className="flex max-w-xs flex-col gap-1">
-          <span className={label}>HKD per month</span>
-          <input
+        <Field className="max-w-xs">
+          <FieldLabel>HKD per month</FieldLabel>
+          <Input
             name="discretionaryBudget"
             inputMode="decimal"
             required
             defaultValue={toDecimal(form.discretionaryBudgetHkdMinor)}
             placeholder="3000.00"
-            className={`tabular text-lg ${field}`}
+            className="tabular h-11 text-lg md:text-lg"
           />
           {form.usingDefaults['safety.discretionary_budget'] ? (
-            <span className="text-xs text-amber-600 dark:text-amber-400">
+            <span className="text-xs text-warning">
               Still the placeholder. This is the number you said you would set yourself.
             </span>
           ) : null}
-        </label>
-      </section>
+        </Field>
+      </Section>
 
-      <section className="flex flex-col gap-4">
+      <Section divided={false}>
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Credit cards
-          </h2>
+          <SectionHeading>Credit cards</SectionHeading>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             How much of a card balance competes with your rent for the same cash. Either way the
             whole balance still reduces net worth, so the gentler option cannot make you look
@@ -73,7 +70,7 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
               name="creditModel"
               value="minimum_payment"
               defaultChecked={form.creditModel === 'minimum_payment'}
-              className="mt-1"
+              className="mt-1 size-4 accent-primary"
             />
             <span className="text-sm">
               <strong>Minimum payment</strong> — for carrying a balance. Only what must be paid by
@@ -87,7 +84,7 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
               name="creditModel"
               value="full_balance"
               defaultChecked={form.creditModel === 'full_balance'}
-              className="mt-1"
+              className="mt-1 size-4 accent-primary"
             />
             <span className="text-sm">
               <strong>Full balance</strong> — for clearing the card monthly, when the balance
@@ -95,22 +92,13 @@ export function SettingsFormView({ form }: { form: SettingsForm }) {
             </span>
           </label>
         </div>
-      </section>
+      </Section>
 
       <div className="flex items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? 'Saving…' : 'Save settings'}
-        </button>
-        {state.error ? (
-          <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
-        ) : null}
-        {state.ok ? <span className="text-sm text-(--color-green)">{state.ok}</span> : null}
+        <SubmitButton size="lg" className="self-start" pendingLabel="Saving…">
+          Save settings
+        </SubmitButton>
+        <FormStatus state={state} />
       </div>
     </form>
   )

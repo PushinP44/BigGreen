@@ -1,4 +1,4 @@
-import { PageHeader, PageShell } from '@/components/page-shell'
+import { PageHeader, PageShell, Section } from '@/components/page-shell'
 import { requireSessionDb } from '@/lib/db/session'
 import { listCreditCards, loadSafetySettings } from '@/lib/read/settings'
 import { AdvancedFormView } from './advanced-form'
@@ -25,12 +25,9 @@ export default async function AdvancedSettingsPage() {
 
       <AdvancedFormView form={form} />
 
-      <section className="flex flex-col gap-4 border-t border-(--color-line) pt-8">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Credit cards
-        </h2>
+      <Section title="Credit cards">
         <CardSettings cards={cards} />
-      </section>
+      </Section>
     </PageShell>
   )
 }

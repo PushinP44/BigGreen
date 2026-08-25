@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react'
 import { resolvePending, type ReviewState } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
 
 const initial: ReviewState = {}
 
@@ -20,10 +22,10 @@ export function PendingRow({
   amount: string
   notes: string
 }) {
-  const [state, formAction, pending] = useActionState(resolvePending, initial)
+  const [state, formAction] = useActionState(resolvePending, initial)
 
   return (
-    <li className="flex flex-col gap-3 rounded-lg border border-(--color-line) p-4">
+    <li className="flex flex-col gap-3 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="tabular text-xs text-muted-foreground">{date}</span>
         <span className="flex-1 font-medium">{description}</span>
@@ -37,37 +39,25 @@ export function PendingRow({
         most of them.
       */}
       {notes ? (
-        <pre className="whitespace-pre-wrap rounded bg-(--color-line)/40 px-3 py-2 text-xs text-muted-foreground">
+        <pre className="whitespace-pre-wrap rounded bg-muted px-3 py-2 text-xs text-muted-foreground">
           {notes}
         </pre>
       ) : null}
 
       <form action={formAction} className="flex items-center gap-2">
         <input type="hidden" name="transactionId" value={id} />
-        <button
-          type="submit"
-          name="action"
-          value="confirm"
-          disabled={pending}
-          className="rounded-md bg-(--color-green) px-4 py-1.5 text-sm font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? '…' : 'Confirm'}
-        </button>
-        <button
-          type="submit"
-          name="action"
-          value="discard"
-          disabled={pending}
-          className="rounded-md border border-(--color-line) px-4 py-1.5 text-sm text-muted-foreground transition hover:border-red-500/50 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
-        >
+        {/*
+          Both buttons submit the same form and are told apart server-side by
+          `name="action"` — so these have to stay real submit buttons carrying
+          a value, not handlers.
+        */}
+        <SubmitButton name="action" value="confirm" pendingLabel="…">
+          Confirm
+        </SubmitButton>
+        <SubmitButton name="action" value="discard" variant="outlineDestructive">
           Discard
-        </button>
-        {state.error ? (
-          <span role="alert" className="text-xs text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
-        ) : null}
-        {state.ok ? <span className="text-xs text-(--color-green)">{state.ok}</span> : null}
+        </SubmitButton>
+        <FormStatus state={state} />
       </form>
     </li>
   )

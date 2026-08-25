@@ -1,15 +1,16 @@
 'use client'
 
 import { useActionState } from 'react'
+import { Section, SectionHeading } from '@/components/page-shell'
 import { saveAdvancedSettings, type SettingsState } from './actions'
 import type { SettingsForm } from '@/lib/read/settings'
 import type { Currency } from '@/lib/domain/money'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
 const initial: SettingsState = {}
-
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 const POOLS: Array<{ currency: Currency; name: string; note: string }> = [
   {
@@ -38,15 +39,13 @@ function toDecimal(minor: string | undefined, decimals = 2): string {
 }
 
 export function AdvancedFormView({ form }: { form: SettingsForm }) {
-  const [state, formAction, pending] = useActionState(saveAdvancedSettings, initial)
+  const [state, formAction] = useActionState(saveAdvancedSettings, initial)
 
   return (
     <form action={formAction} className="flex flex-col gap-10">
-      <section className="flex flex-col gap-4">
+      <Section divided={false}>
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Floors, per pool
-          </h2>
+          <SectionHeading>Floors, per pool</SectionHeading>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             The floor is <strong>days of cover</strong>, not a fixed cushion: it is your daily
             spending multiplied by the days you want to keep in reserve, so it moves on its own as
@@ -66,37 +65,35 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
               <p className="max-w-2xl text-xs text-muted-foreground">{pool.note}</p>
 
               <div className="flex flex-wrap gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className={label}>Days of cover</span>
-                  <input
+                <Field>
+                  <FieldLabel>Days of cover</FieldLabel>
+                  <Input
                     name={`floorDays.${pool.currency}`}
                     inputMode="numeric"
                     defaultValue={form.floorDays[pool.currency] ?? 0}
-                    className={`tabular w-32 ${field}`}
+                    className="tabular w-32"
                   />
-                </label>
+                </Field>
 
-                <label className="flex flex-col gap-1">
-                  <span className={label}>Typical spend / month ({pool.currency})</span>
-                  <input
+                <Field>
+                  <FieldLabel>Typical spend / month ({pool.currency})</FieldLabel>
+                  <Input
                     name={`monthlySpend.${pool.currency}`}
                     inputMode="decimal"
                     defaultValue={toDecimal(form.declaredMonthlySpendMinor[pool.currency])}
                     placeholder="0.00"
-                    className={`tabular w-48 ${field}`}
+                    className="tabular w-48"
                   />
-                </label>
+                </Field>
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4">
+      <Section divided={false}>
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Timing
-          </h2>
+          <SectionHeading>Timing</SectionHeading>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             How far ahead scheduled bills count against you, how much spending history the burn
             rate averages over, and how much history it needs before it trusts that average over
@@ -104,72 +101,61 @@ export function AdvancedFormView({ form }: { form: SettingsForm }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <label className="flex flex-col gap-1">
-            <span className={label}>Committed horizon (days)</span>
-            <input
+          <Field>
+            <FieldLabel>Committed horizon (days)</FieldLabel>
+            <Input
               name="horizonDays"
               inputMode="numeric"
               defaultValue={form.horizonDays}
-              className={`tabular w-40 ${field}`}
+              className="tabular w-40"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>Burn window (days)</span>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>Burn window (days)</FieldLabel>
+            <Input
               name="burnWindowDays"
               inputMode="numeric"
               defaultValue={form.burnWindowDays}
-              className={`tabular w-40 ${field}`}
+              className="tabular w-40"
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={label}>History before measuring</span>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>History before measuring</FieldLabel>
+            <Input
               name="minHistoryDays"
               inputMode="numeric"
               defaultValue={form.minHistoryDays}
-              className={`tabular w-40 ${field}`}
+              className="tabular w-40"
             />
-          </label>
+          </Field>
         </div>
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4">
+      <Section divided={false}>
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Gmail ingest
-          </h2>
+          <SectionHeading>Gmail ingest</SectionHeading>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             A parsed email at or above this confidence posts itself; below it, it waits in the{' '}
             <span className="whitespace-nowrap">review queue</span> instead. Higher is more
             cautious — more emails wait for you to confirm them.
           </p>
         </div>
-        <label className="flex flex-col gap-1">
-          <span className={label}>Auto-post confidence (0–1)</span>
-          <input
+        <Field>
+          <FieldLabel>Auto-post confidence (0–1)</FieldLabel>
+          <Input
             name="autoPostConfidence"
             inputMode="decimal"
             defaultValue={form.autoPostConfidence}
-            className={`tabular w-32 ${field}`}
+            className="tabular w-32"
           />
-        </label>
-      </section>
+        </Field>
+      </Section>
 
       <div className="flex items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? 'Saving…' : 'Save advanced settings'}
-        </button>
-        {state.error ? (
-          <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
-        ) : null}
-        {state.ok ? <span className="text-sm text-(--color-green)">{state.ok}</span> : null}
+        <SubmitButton size="lg" className="self-start" pendingLabel="Saving…">
+          Save advanced settings
+        </SubmitButton>
+        <FormStatus state={state} />
       </div>
     </form>
   )

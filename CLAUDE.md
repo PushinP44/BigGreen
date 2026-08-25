@@ -35,9 +35,28 @@ rule, the ingest architecture, and the phase order. Do not improvise around it.
 
 ## Stack
 
-Next.js (App Router) · TypeScript · Supabase (Postgres/Auth/RLS) · Drizzle · Tailwind +
-shadcn/ui · Recharts · Vitest + fast-check · PGlite (schema/RLS tests, no Docker) · Playwright ·
+Next.js (App Router) · TypeScript · Supabase (Postgres/Auth/RLS) · Drizzle · Tailwind v4 +
+shadcn/ui · Recharts · Vitest + fast-check · PGlite (schema/RLS tests, no Docker) ·
 Vercel. FX from Frankfurter/ECB, free and overridable. Optional Apple Pay tap capture (P5).
+
+**Playwright is not installed.** It is intended (`docs/PLAN.md` §"Verification") but no E2E
+suite exists, so authenticated routes are verified by hand or against a local PGlite dev
+server — see below. Do not describe E2E coverage this repo does not have.
+
+The UI is shadcn/ui **vendored**, not installed: primitives live in `components/ui/` and there
+is no shadcn runtime dependency. `app/globals.css` is hand-authored and must stay that way —
+running `shadcn init` over it drops the `.tabular` utility (48 money columns lose tabular
+figures, silently) and the three `smart-alert-*` keyframes. `tests/unit/css-contract.test.ts`
+guards exactly that and is the app's only UI regression test.
+
+Colour has two layers: a bare-named Big Green palette (`--paper`, `--ink`, `--green`, `--loss`,
+`--line`) and the shadcn semantic names built from it (`--background`, `--primary`, `--border`…).
+Dark mode overrides the palette, not the semantic layer, so six declarations move about twenty
+tokens. Palette names stay outside the `--color-*` prefix, which belongs to Tailwind's `@theme`.
+
+Authenticated routes can be run locally without Supabase: `.claude/launch.json` defines
+`big-green-pglite`, which starts the dev server with the Supabase env vars blank and falls back
+to PGlite with a seeded user.
 
 Schema has one authoring surface: Drizzle in `lib/db/schema.ts` → `drizzle-kit generate` →
 `supabase/migrations/`. Generated SQL is committed and never hand-edited; RLS policies and

@@ -2,12 +2,13 @@
 
 import { useActionState, useState } from 'react'
 import { archiveAccount, createAccount, type AccountState } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Field, FieldHint, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 
 const initial: AccountState = {}
-
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
 
 const KINDS = [
   { value: 'bank', label: 'Bank account' },
@@ -17,8 +18,10 @@ const KINDS = [
   { value: 'brokerage', label: 'Brokerage' },
 ]
 
+const CURRENCIES = ['HKD', 'USD', 'THB'] as const
+
 export function AccountForm() {
-  const [state, formAction, pending] = useActionState(createAccount, initial)
+  const [state, formAction] = useActionState(createAccount, initial)
   const [kind, setKind] = useState('bank')
 
   // A card is a liability, never spendable cash — the database CHECK enforces
@@ -28,50 +31,48 @@ export function AccountForm() {
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-3">
-        <label className="flex flex-1 flex-col gap-1 min-w-48">
-          <span className={label}>Name</span>
-          <input name="name" required placeholder="HSBC HKD" className={field} />
-        </label>
+        <Field className="min-w-48 flex-1">
+          <FieldLabel>Name</FieldLabel>
+          <Input name="name" required placeholder="HSBC HKD" />
+        </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={label}>Kind</span>
-          <select
-            name="kind"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-            className={field}
-          >
+        <Field>
+          <FieldLabel>Kind</FieldLabel>
+          <Select name="kind" value={kind} onChange={(event) => setKind(event.target.value)}>
             {KINDS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={label}>Currency</span>
-          <select name="currency" defaultValue="HKD" className={field}>
-            <option value="HKD">HKD</option>
-            <option value="USD">USD</option>
-            <option value="THB">THB</option>
-          </select>
-        </label>
+        <Field>
+          <FieldLabel>Currency</FieldLabel>
+          <Select name="currency" defaultValue="HKD">
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex flex-col gap-1">
-          <span className={label}>Institution (optional)</span>
-          <input
-            name="institution"
-            placeholder="hsbc"
-            className={`${field} w-40`}
-          />
-        </label>
+        <Field>
+          <FieldLabel>Institution (optional)</FieldLabel>
+          <Input name="institution" placeholder="hsbc" className="w-40" />
+        </Field>
 
         {canBeLiquid ? (
           <label className="flex items-center gap-2 pt-5 text-sm">
-            <input type="checkbox" name="isLiquid" defaultChecked />
+            <input
+              type="checkbox"
+              name="isLiquid"
+              defaultChecked
+              className="size-4 accent-primary"
+            />
             <span>
               Spendable
               <span className="ml-1 text-xs text-muted-foreground">
@@ -83,70 +84,56 @@ export function AccountForm() {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex flex-col gap-1">
-          <span className={label}>Opening balance (optional)</span>
-          <input
-            name="openingBalance"
-            inputMode="decimal"
-            placeholder="0.00"
-            className={`tabular w-36 ${field}`}
-          />
-        </label>
+        <Field>
+          <FieldLabel>Opening balance (optional)</FieldLabel>
+          <Input name="openingBalance" inputMode="decimal" placeholder="0.00" className="tabular w-36" />
+        </Field>
 
-        <label className="flex flex-col gap-1">
-          <span className={label}>
+        <Field>
+          <FieldLabel>
             {kind === 'credit_card' ? 'Card ends in (optional)' : 'Account starts with (optional)'}
-          </span>
-          <input
+          </FieldLabel>
+          <Input
             name="accountDigits"
             inputMode="numeric"
             maxLength={4}
             placeholder={kind === 'credit_card' ? '4321' : '1234'}
-            className={`tabular w-28 ${field}`}
+            className="tabular w-28"
           />
-        </label>
+        </Field>
       </div>
 
       <div className="flex items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? 'Adding…' : 'Add account'}
-        </button>
-        {state.error ? (
-          <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
-        ) : null}
-        {state.ok ? <span className="text-sm text-(--color-green)">{state.ok}</span> : null}
+        <SubmitButton size="lg" className="self-start" pendingLabel="Adding…">
+          Add account
+        </SubmitButton>
+        <FormStatus state={state} />
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <FieldHint>
         The institution is what matches emailed alerts to this account — <code>hsbc</code>,{' '}
         <code>za</code>, <code>mox</code>, <code>ktb</code>. Leave it blank if the account never
         emails you. If it does, the digits narrow an alert down to this account when the
         institution has more than one — both fields can also be set later from the list above.
-      </p>
+      </FieldHint>
     </form>
   )
 }
 
 export function ArchiveButton({ id }: { id: string }) {
-  const [state, formAction, pending] = useActionState(archiveAccount, initial)
+  const [state, formAction] = useActionState(archiveAccount, initial)
 
   return (
     <form action={formAction}>
       <input type="hidden" name="accountId" value={id} />
-      <button
-        type="submit"
-        disabled={pending}
+      <SubmitButton
+        variant="outlineDestructive"
+        size="xs"
         title="Archive — history is kept"
-        className="text-xs text-muted-foreground transition hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+        pendingLabel="…"
       >
-        {pending ? '…' : state.error ? 'failed' : 'archive'}
-      </button>
+        {state.error ? 'failed' : 'archive'}
+      </SubmitButton>
     </form>
   )
 }
