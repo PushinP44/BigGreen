@@ -2,6 +2,10 @@
 
 import { useActionState } from 'react'
 import { saveCard, type SettingsState } from './actions'
+import { FormStatus } from '@/components/form-status'
+import { SubmitButton } from '@/components/submit-button'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 
 export interface CardRow {
   readonly id: string
@@ -18,10 +22,6 @@ export interface CardRow {
 
 const initial: SettingsState = {}
 
-const field =
-  'rounded-md border border-(--color-line) bg-transparent px-3 py-2 outline-none focus:border-(--color-green)'
-const label = 'text-xs uppercase tracking-wide text-muted-foreground'
-
 function toDecimal(minor: string | null, decimals = 2): string {
   if (minor === null) return ''
   const value = BigInt(minor)
@@ -34,7 +34,7 @@ function bpsToPercent(bps: number | null): string {
 }
 
 export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
-  const [state, formAction, pending] = useActionState(saveCard, initial)
+  const [state, formAction] = useActionState(saveCard, initial)
 
   if (cards.length === 0) {
     return <p className="text-sm text-muted-foreground">No credit card accounts yet.</p>
@@ -50,7 +50,7 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
       </p>
 
       {cards.map((card) => (
-        <div key={card.id} className="flex flex-col gap-3 rounded-lg border border-(--color-line) p-4">
+        <div key={card.id} className="flex flex-col gap-3 rounded-lg border border-border p-4">
           <input type="hidden" name="cardIds" value={card.id} />
           <div className="flex items-baseline gap-2">
             <span className="font-medium">{card.name}</span>
@@ -58,85 +58,85 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1">
-              <span className={label}>Statement closes (day)</span>
-              <input
+            <Field>
+              <FieldLabel>Statement closes (day)</FieldLabel>
+              <Input
                 name={`statementDay.${card.id}`}
                 inputMode="numeric"
                 placeholder="25"
                 defaultValue={card.statementDay ?? ''}
-                className={`tabular w-32 ${field}`}
+                className="tabular w-32"
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>Payment due (day)</span>
-              <input
+            <Field>
+              <FieldLabel>Payment due (day)</FieldLabel>
+              <Input
                 name={`paymentDueDay.${card.id}`}
                 inputMode="numeric"
                 placeholder="15"
                 defaultValue={card.paymentDueDay ?? ''}
-                className={`tabular w-32 ${field}`}
+                className="tabular w-32"
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>Card ends in</span>
-              <input
+            <Field>
+              <FieldLabel>Card ends in</FieldLabel>
+              <Input
                 name={`last4.${card.id}`}
                 inputMode="numeric"
                 maxLength={4}
                 placeholder="4321"
                 defaultValue={card.accountLast4 ?? ''}
-                className={`tabular w-28 ${field}`}
+                className="tabular w-28"
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>Credit limit</span>
-              <input
+            <Field>
+              <FieldLabel>Credit limit</FieldLabel>
+              <Input
                 name={`creditLimit.${card.id}`}
                 inputMode="decimal"
                 placeholder="50000.00"
                 defaultValue={toDecimal(card.creditLimitMinor)}
-                className={`tabular w-40 ${field}`}
+                className="tabular w-40"
               />
-            </label>
+            </Field>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1">
-              <span className={label}>APR %</span>
-              <input
+            <Field>
+              <FieldLabel>APR %</FieldLabel>
+              <Input
                 name={`apr.${card.id}`}
                 inputMode="decimal"
                 placeholder="36"
                 defaultValue={bpsToPercent(card.aprBps)}
-                className={`tabular w-28 ${field}`}
+                className="tabular w-28"
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>Min payment %</span>
-              <input
+            <Field>
+              <FieldLabel>Min payment %</FieldLabel>
+              <Input
                 name={`minPct.${card.id}`}
                 inputMode="decimal"
                 placeholder="1"
                 defaultValue={bpsToPercent(card.minPaymentPctBps)}
-                className={`tabular w-32 ${field}`}
+                className="tabular w-32"
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1">
-              <span className={label}>Min payment floor</span>
-              <input
+            <Field>
+              <FieldLabel>Min payment floor</FieldLabel>
+              <Input
                 name={`minFloor.${card.id}`}
                 inputMode="decimal"
                 placeholder="50.00"
                 defaultValue={toDecimal(card.minPaymentFloorMinor)}
-                className={`tabular w-36 ${field}`}
+                className="tabular w-36"
               />
-            </label>
+            </Field>
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -149,19 +149,10 @@ export function CardSettings({ cards }: { cards: readonly CardRow[] }) {
       ))}
 
       <div className="flex items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-(--color-green) px-5 py-2.5 font-medium text-white transition hover:bg-(--color-green-deep) disabled:opacity-50"
-        >
-          {pending ? 'Saving…' : 'Save cards'}
-        </button>
-        {state.error ? (
-          <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {state.error}
-          </span>
-        ) : null}
-        {state.ok ? <span className="text-sm text-(--color-green)">{state.ok}</span> : null}
+        <SubmitButton size="lg" className="self-start" pendingLabel="Saving…">
+          Save cards
+        </SubmitButton>
+        <FormStatus state={state} />
       </div>
     </form>
   )

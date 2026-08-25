@@ -23,44 +23,48 @@
   shadcn's stock neutral palette is adopted.
 
   Everything here is a real custom property on :root rather than a `@theme`
-  entry, because `app/charts/*` passes `var(--…)` straight into Recharts props
-  which land on SVG attributes. An SVG `fill` pointing at a variable that does
-  not resolve falls back to black, silently.
+  entry, because `components/charts/*` passes `var(--…)` straight into Recharts
+  props which land on SVG attributes. An SVG `fill` pointing at a variable that
+  does not resolve falls back to black, silently.
+
+  The palette deliberately sits *outside* the `--color-*` namespace. That prefix
+  belongs to Tailwind's `@theme` below, where `--color-primary` generates
+  `bg-primary`; a `--color-paper` next to it reads like it should generate
+  `bg-paper`, and it never did. Bare names keep the two vocabularies apart.
 */
 :root {
   color-scheme: light;
 
   /* ── Big Green palette ─────────────────────────────────────────────────── */
-  --color-paper: oklch(0.98 0.008 120);
-  --color-ink: oklch(0.22 0.02 150);
-  --color-green: oklch(0.52 0.13 155);
-  --color-green-deep: oklch(0.34 0.09 155);
+  --paper: oklch(0.98 0.008 120);
+  --ink: oklch(0.22 0.02 150);
+  --green: oklch(0.52 0.13 155);
   /*
-    The loss counterpart to --color-green. A real custom property rather than a
+    The loss counterpart to --green. A real custom property rather than a
     `text-red-600 dark:text-red-400` pair because an SVG fill cannot use a
     Tailwind variant — see app/charts/top-movers-chart.tsx.
   */
-  --color-loss: oklch(0.577 0.245 27.325);
-  --color-line: oklch(0.9 0.012 150);
+  --loss: oklch(0.577 0.245 27.325);
+  --line: oklch(0.9 0.012 150);
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* ── shadcn semantic layer, built from the palette above ───────────────── */
-  --background: var(--color-paper);
-  --foreground: var(--color-ink);
+  --background: var(--paper);
+  --foreground: var(--ink);
   /*
     Cards sit above the page rather than matching it, so a panel reads as an
     object. The page is warm paper; a card is a shade nearer white.
   */
   --card: oklch(0.995 0.004 120);
-  --card-foreground: var(--color-ink);
+  --card-foreground: var(--ink);
   --popover: oklch(0.995 0.004 120);
-  --popover-foreground: var(--color-ink);
-  --primary: var(--color-green);
+  --popover-foreground: var(--ink);
+  --primary: var(--green);
   --primary-foreground: oklch(0.99 0.005 120);
   --secondary: oklch(0.955 0.008 120);
-  --secondary-foreground: var(--color-ink);
+  --secondary-foreground: var(--ink);
   /*
     `muted` is a *surface*; `muted-foreground` is the text colour that sits on
     it. Big Green's old --color-muted was the latter despite the name, which is
@@ -70,33 +74,33 @@
   --muted: oklch(0.955 0.008 120);
   --muted-foreground: oklch(0.55 0.015 150);
   --accent: oklch(0.94 0.012 140);
-  --accent-foreground: var(--color-ink);
-  --destructive: var(--color-loss);
+  --accent-foreground: var(--ink);
+  --destructive: var(--loss);
   --destructive-foreground: oklch(0.99 0.005 120);
   /*
     Not part of shadcn's token set, but the app needs both: there are 84
     hardcoded red/amber utilities today purely because there was nowhere
     semantic to put a "this went well" or "this is stale" colour.
   */
-  --success: var(--color-green);
+  --success: var(--green);
   --success-foreground: oklch(0.99 0.005 120);
   --warning: oklch(0.72 0.15 70);
   --warning-foreground: oklch(0.22 0.02 150);
-  --border: var(--color-line);
-  --input: var(--color-line);
-  --ring: var(--color-green);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--green);
 
   --sidebar: oklch(0.965 0.008 120);
-  --sidebar-foreground: var(--color-ink);
-  --sidebar-primary: var(--color-green);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--green);
   --sidebar-primary-foreground: oklch(0.99 0.005 120);
   --sidebar-accent: oklch(0.94 0.012 140);
-  --sidebar-accent-foreground: var(--color-ink);
-  --sidebar-border: var(--color-line);
-  --sidebar-ring: var(--color-green);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--green);
 
   /*
-    Same lightness/chroma family as --color-green, hue rotated — for the
+    Same lightness/chroma family as --green, hue rotated — for the
     category-trend chart's stacked bars, the one spot in the app that needs
     more than one or two colours apart to stay readable. Slot order is
     load-bearing: see PALETTE in app/charts/category-trend-chart.tsx, where
@@ -113,9 +117,10 @@
 
 /*
   Dark theme. These override the palette variables themselves rather than
-  restyling components: --color-line is used as a border AND as the empty track
-  behind progress bars, so leaving it near-white in dark mode makes an empty
-  budget bar read as a full one. The semantic layer above is defined in terms
+  restyling components: --line is used as a border AND (via --border) as an
+  outline everywhere, so leaving it near-white in dark mode inverts the page.
+  Overriding six palette values updates roughly twenty semantic tokens with it,
+  which is why the palette layer is worth keeping rather than inlining. The semantic layer above is defined in terms
   of the palette, so most of it follows automatically — only the surfaces that
   are not derived need restating.
 
@@ -126,12 +131,11 @@
 .dark {
   color-scheme: dark;
 
-  --color-paper: oklch(0.19 0.015 150);
-  --color-ink: oklch(0.95 0.01 120);
-  --color-green: oklch(0.62 0.14 155);
-  --color-green-deep: oklch(0.72 0.15 155);
-  --color-loss: oklch(0.704 0.191 22.216);
-  --color-line: oklch(0.32 0.015 150);
+  --paper: oklch(0.19 0.015 150);
+  --ink: oklch(0.95 0.01 120);
+  --green: oklch(0.62 0.14 155);
+  --loss: oklch(0.704 0.191 22.216);
+  --line: oklch(0.32 0.015 150);
 
   --muted-foreground: oklch(0.66 0.015 150);
   --card: oklch(0.225 0.015 150);

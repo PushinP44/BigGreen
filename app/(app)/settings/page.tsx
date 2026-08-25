@@ -25,9 +25,9 @@ export default async function SettingsPage() {
 
       <SettingsFormView form={form} />
 
-      <p className="border-t border-(--color-line) pt-6 text-sm text-muted-foreground">
+      <p className="border-t border-border pt-6 text-sm text-muted-foreground">
         Floors per pool, credit card billing terms, and other less-common settings live on the{' '}
-        <Link href="/settings/advanced" className="text-(--color-green) underline">
+        <Link href="/settings/advanced" className="text-primary underline">
           advanced settings
         </Link>{' '}
         page.

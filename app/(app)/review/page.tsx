@@ -48,7 +48,7 @@ export default async function ReviewPage() {
       />
 
       {pending.length === 0 ? (
-        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border px-4 py-6 text-center text-sm text-muted-foreground">
           Nothing waiting.
         </p>
       ) : (

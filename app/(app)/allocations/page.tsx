@@ -29,7 +29,7 @@ export default async function AllocationsPage() {
       />
 
       {suggestions.length === 0 ? (
-        <p className="rounded-lg border border-(--color-line) px-4 py-6 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
           Nothing pending. A qualifying inflow shows up here automatically.
         </p>
       ) : (

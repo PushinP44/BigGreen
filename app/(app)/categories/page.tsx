@@ -1,4 +1,12 @@
-import { PageHeader, PageShell } from '@/components/page-shell'
+import { PageHeader, PageShell, Section } from '@/components/page-shell'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { requireSessionDb } from '@/lib/db/session'
 import {
   averageSpendByCategory,
@@ -51,44 +59,39 @@ export default async function CategoriesPage() {
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing spent yet.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-(--color-line) text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="py-2 pr-4 font-medium">Category</th>
-                <th className="py-2 pr-4 text-right font-medium">This month</th>
-                <th className="py-2 text-right font-medium">{TRAILING_MONTHS}-month average</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.categoryId ?? 'none'} className="border-b border-(--color-line)/60">
-                  <td className="py-2 pr-4">{row.name}</td>
-                  <td className="tabular py-2 pr-4 text-right">
-                    {formatMoney(hkd(row.thisMonthHkdMinor))}
-                  </td>
-                  <td className="tabular py-2 text-right text-muted-foreground">
-                    {formatMoney(hkd(row.averageHkdMinor))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category</TableHead>
+              <TableHead className="text-right">This month</TableHead>
+              <TableHead className="text-right">{TRAILING_MONTHS}-month average</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.categoryId ?? 'none'}>
+                <TableCell>{row.name}</TableCell>
+                <TableCell className="tabular text-right">
+                  {formatMoney(hkd(row.thisMonthHkdMinor))}
+                </TableCell>
+                <TableCell className="tabular text-right text-muted-foreground">
+                  {formatMoney(hkd(row.averageHkdMinor))}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {topNames.length > 0 ? (
-        <section className="flex flex-col gap-3 border-t border-(--color-line) pt-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Trend · top {TOP_CATEGORIES} categories
-          </h2>
+        <Section title={`Trend · top ${TOP_CATEGORIES} categories`}>
           <CategoryTrendChart
             data={trendData}
             categoryKeys={
               trendData.some((row) => 'Other' in row) ? [...topNames, 'Other'] : topNames
             }
           />
-        </section>
+        </Section>
       ) : null}
     </PageShell>
   )
